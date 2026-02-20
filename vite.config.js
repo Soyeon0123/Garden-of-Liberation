@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  
+  base: '/Garden-of-Liberation',
   plugins: [react()],
   
   // Three.js 최적화
@@ -50,4 +52,5 @@ export default defineConfig({
   esbuild: {
     target: 'esnext'
   }
+
 })
