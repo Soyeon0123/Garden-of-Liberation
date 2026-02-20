@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   
-  base: '/Garden-of-Liberation',
+  base: '/Garden-of-Liberation/',
   plugins: [react()],
   
   // Three.js 최적화
