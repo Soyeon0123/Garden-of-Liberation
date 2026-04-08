@@ -6,8 +6,11 @@ Command: npx gltfjsx@6.5.3 public/models/compressed/palace_draco_02.glb -o src/c
 import React from 'react'
 import { useGLTF } from '@react-three/drei'
 
+
+const BASE = import.meta.env.BASE_URL
+
 export function Palace02(props) {
-  const { nodes, materials } = useGLTF('/models/compressed/palace_draco_02.glb')
+  const { nodes, materials } = useGLTF(`${BASE}models/compressed/palace_draco_02.glb`)
   return (
     <group {...props} dispose={null}>
       <group position={[1.581, 14.055, 4.882]}>
@@ -2268,5 +2271,5 @@ export function Palace02(props) {
   )
 }
 
-useGLTF.preload('/models/compressed/palace_draco_02.glb')
+useGLTF.preload(`${BASE}models/compressed/palace_draco_02.glb`)
 export default Palace02

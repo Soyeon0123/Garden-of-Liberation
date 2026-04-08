@@ -38,7 +38,7 @@ const STAGES = {
 const getCharImg = (charName, expression) => {
   if (!charName) return null
   const expr = expression ? `_${expression}` : ''
-  return `${BASE}UI/figure_illust/${charName}${expr}.png`  // ← /UI → BASE+UI
+  return `${BASE}UI/figure_illust/${charName}${expr}.png`
 }
 
 // ─── 흰 outline filter (활성 캐릭터) ─────────────────────────
@@ -51,19 +51,19 @@ const ACTIVE_OUTLINE = `
 
 // ─── 이미지 프리로드 (배경 + 캐릭터) ────────────────────────
 const ALL_PRELOAD = [
-  '${BASE}images/Nakai_bg.png', '${BASE}images/Jang_bg.png', '${BASE}images/Paper_tex_2.png',
-  '${BASE}images/mison_namu.png', '${BASE}typo/mison_namu.png', '${BASE}typo/Uchiwa-noki.svg',
-  '${BASE}UI/figure_illust/nakai.png',       '${BASE}UI/figure_illust/nakai_smile.png',
-  '${BASE}UI/figure_illust/nakai_annoying.png', '${BASE}UI/figure_illust/nakai_exciting.png',
-  '${BASE}UI/figure_illust/nakai_dissapointed.png',
-  '${BASE}UI/figure_illust/soyeon.png',      '${BASE}UI/figure_illust/soyeon_curious.png',
-  '${BASE}UI/figure_illust/soyeon_smile.png', '${BASE}UI/figure_illust/soyeon_surprised.png',
-  '${BASE}UI/figure_illust/soyeon_dissapointed.png',
-  '${BASE}UI/figure_illust/minjung.png',     '${BASE}UI/figure_illust/minjung_smile.png',
-  '${BASE}UI/figure_illust/minjung_surprised.png', '${BASE}UI/figure_illust/minjung_dissapointed.png',
-  '${BASE}UI/figure_illust/hyungdoo.png',    '${BASE}UI/figure_illust/hyungdoo_smile.png',
-  '${BASE}UI/figure_illust/hyungdoo_trueSmile.png', '${BASE}UI/figure_illust/hyungdoo_dissapointed.png',
-  '${BASE}UI/standing_icon/nakai_standing.png', '${BASE}UI/standing_icon/hyungdoo_standing.png',
+  `${BASE}images/Nakai_bg.png`, `${BASE}images/Jang_bg.png`, `${BASE}images/Paper_tex_2.png`,
+  `${BASE}images/mison_namu.png`, `${BASE}typo/mison_namu.png`, `${BASE}typo/Uchiwa-noki.svg`,
+  `${BASE}UI/figure_illust/nakai.png`,       `${BASE}UI/figure_illust/nakai_smile.png`,
+  `${BASE}UI/figure_illust/nakai_annoying.png`, `${BASE}UI/figure_illust/nakai_exciting.png`,
+  `${BASE}UI/figure_illust/nakai_dissapointed.png`,
+  `${BASE}UI/figure_illust/soyeon.png`,      `${BASE}UI/figure_illust/soyeon_curious.png`,
+  `${BASE}UI/figure_illust/soyeon_smile.png`, `${BASE}UI/figure_illust/soyeon_surprised.png`,
+  `${BASE}UI/figure_illust/soyeon_dissapointed.png`,
+  `${BASE}UI/figure_illust/minjung.png`,     `${BASE}UI/figure_illust/minjung_smile.png`,
+  `${BASE}UI/figure_illust/minjung_surprised.png`, `${BASE}UI/figure_illust/minjung_dissapointed.png`,
+  `${BASE}UI/figure_illust/hyungdoo.png`,    `${BASE}UI/figure_illust/hyungdoo_smile.png`,
+  `${BASE}UI/figure_illust/hyungdoo_trueSmile.png`, `${BASE}UI/figure_illust/hyungdoo_dissapointed.png`,
+  `${BASE}UI/standing_icon/nakai_standing.png`, `${BASE}UI/standing_icon/hyungdoo_standing.png`,
 ]
 
 function usePreloadImages() {
@@ -130,7 +130,6 @@ const DIALOGUES = {
     { character: 'Mother',   expression: null,          text: "Now... we can finally write the name on the sign.",                                                                                        side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
   ],
 
-  // Chapter 3 — 엄마 좌, 소연 우
   chapter3: [
     { character: 'Soyeon',     expression: 'surprised', text: "Wait... it's alive? Well... I mean, of course it's alive... but...",                   side: 'right',     leftChar: 'minjung', rightChar: 'soyeon' },
     { character: 'Mother',     expression: 'surprised', text: "It's... talking?",                                                                       side: 'left',      leftChar: 'minjung', rightChar: 'soyeon' },
@@ -169,13 +168,13 @@ const DIALOGUES = {
 }
 
 // ─────────────────────────────────────────────────────────────
-// FlowerBillboard — 수동 로딩 (로드 전 렌더 안 함 → 사각형 없음)
+// FlowerBillboard
 // ─────────────────────────────────────────────────────────────
 function FlowerBillboard({ position = [0, 5, 0] }) {
   const [texture, setTexture] = React.useState(null)
   React.useEffect(() => {
     const loader = new THREE.TextureLoader()
-    loader.load('${BASE}images/mison_namu.png', (t) => setTexture(t))
+    loader.load(`${BASE}images/mison_namu.png`, (t) => setTexture(t))
   }, [])
   if (!texture) return null
   return (
@@ -189,7 +188,7 @@ function FlowerBillboard({ position = [0, 5, 0] }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// StandingIconBillboard — 수동 로딩
+// StandingIconBillboard
 // ─────────────────────────────────────────────────────────────
 function StandingIconBillboard({ position = [0, 5, 0], imagePath, onClick }) {
   const [texture, setTexture] = React.useState(null)
@@ -228,7 +227,7 @@ function StandingIconBillboard({ position = [0, 5, 0], imagePath, onClick }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// DialogueOverlay — 통합 대사 컴포넌트
+// DialogueOverlay
 // ─────────────────────────────────────────────────────────────
 function DialogueOverlay({ dialogues, onComplete }) {
   const [idx, setIdx] = useState(0)
@@ -238,7 +237,6 @@ function DialogueOverlay({ dialogues, onComplete }) {
   const isRightActive = d.side === 'right'
   const isNarration   = d.side === 'narration'
 
-  // 항상 현재 표정 이미지 사용 (활성일 때만 표정 적용, 비활성은 기본 이미지)
   const leftImg  = getCharImg(d.leftChar,  isLeftActive  ? d.expression : null)
   const rightImg = getCharImg(d.rightChar, isRightActive ? d.expression : null)
 
@@ -252,86 +250,48 @@ function DialogueOverlay({ dialogues, onComplete }) {
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 100 }}>
-
-      {/* 왼쪽 캐릭터 — 대사창 뒤에 위치, 위로 올라와 겹침 */}
       {leftImg && (
-        <div style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          zIndex: 101,
-          pointerEvents: 'none',
-        }}>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, zIndex: 101, pointerEvents: 'none' }}>
           <img src={leftImg} alt={d.leftChar} style={{
-            height: CHAR_HEIGHT,
-            width: 'auto',
-            objectFit: 'contain',
-            display: 'block',
-            filter: isLeftActive ? ACTIVE_OUTLINE : 'none',
-            transition: 'filter 0.3s ease',
+            height: CHAR_HEIGHT, width: 'auto', objectFit: 'contain', display: 'block',
+            filter: isLeftActive ? ACTIVE_OUTLINE : 'none', transition: 'filter 0.3s ease',
           }} />
         </div>
       )}
-
-      {/* 오른쪽 캐릭터 — 대사창 뒤에 위치 */}
       {rightImg && (
-        <div style={{
-          position: 'absolute',
-          bottom: 0,
-          right: 0,
-          zIndex: 101,
-          pointerEvents: 'none',
-        }}>
+        <div style={{ position: 'absolute', bottom: 0, right: 0, zIndex: 101, pointerEvents: 'none' }}>
           <img src={rightImg} alt={d.rightChar} style={{
-            height: CHAR_HEIGHT,
-            width: 'auto',
-            objectFit: 'contain',
-            display: 'block',
-            filter: isRightActive ? ACTIVE_OUTLINE : 'none',
-            transition: 'filter 0.3s ease',
+            height: CHAR_HEIGHT, width: 'auto', objectFit: 'contain', display: 'block',
+            filter: isRightActive ? ACTIVE_OUTLINE : 'none', transition: 'filter 0.3s ease',
           }} />
         </div>
       )}
-
-      {/* 대사창 — bottom 100px 띄움, zIndex 102 (캐릭터 앞) */}
       <div onClick={handleClick} style={{
-        position: 'absolute',
-        bottom: '20px',
-        left: `${BOX_MARGIN}px`,
-        right: `${BOX_MARGIN}px`,
-        minHeight: `${DIALOGUE_BOX_H}px`,
-        zIndex: 102,
+        position: 'absolute', bottom: '20px',
+        left: `${BOX_MARGIN}px`, right: `${BOX_MARGIN}px`,
+        minHeight: `${DIALOGUE_BOX_H}px`, zIndex: 102,
         backgroundImage: 'var(--paper-tex-bg-3)', backgroundSize: 'cover',
         backgroundColor: 'var(--bg-color)',
         borderTop: 'var(--border-thickness-medium) solid var(--corner-color)',
         border: '2px solid var(--corner-color)',
         borderRadius: 'var(--border-radius-sm)',
         padding: '24px 60px 36px',
-        cursor: 'pointer', pointerEvents: 'auto',
-        boxSizing: 'border-box',
+        cursor: 'pointer', pointerEvents: 'auto', boxSizing: 'border-box',
       }}>
-        {/* 코너 장식 */}
         <div style={{
           position: 'absolute', top: '-2px', left: '-2px',
           width: 'var(--corner-size)', height: 'var(--corner-size)',
-          borderTop: '3px solid var(--corner-color)',
-          borderLeft: '3px solid var(--corner-color)',
+          borderTop: '3px solid var(--corner-color)', borderLeft: '3px solid var(--corner-color)',
         }} />
-
-        {/* 캐릭터 이름 */}
         <div style={{
           fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)',
-          color: isNarration
-            ? 'var(--color-accent-gold)'
-            : isLeftActive ? 'var(--color-accent)' : 'var(--color-accent-secondary)',
+          color: isNarration ? 'var(--color-accent-gold)' : isLeftActive ? 'var(--color-accent)' : 'var(--color-accent-secondary)',
           marginBottom: 'var(--spacing-sm)',
           borderBottom: '1px solid var(--secondary-color)',
           paddingBottom: 'var(--spacing-xs)', display: 'inline-block',
         }}>
           {d.character}
         </div>
-
-        {/* 대사 + 화살표 인라인 */}
         <div style={{
           fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-md)',
           color: 'var(--color-text)', lineHeight: 1.8,
@@ -340,17 +300,13 @@ function DialogueOverlay({ dialogues, onComplete }) {
         }}>
           {d.text}
           <span style={{
-            display: 'inline-block',
-            width: '32px', height: '22px',
+            display: 'inline-block', width: '32px', height: '22px',
             backgroundImage: 'var(--basic-arrow)',
-            backgroundSize: 'contain', backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'center',
+            backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
             verticalAlign: 'middle', marginLeft: '10px',
             animation: 'arrowPulse 1.4s ease-in-out infinite',
           }} />
         </div>
-
-        {/* 진행 카운터 */}
         <div style={{
           position: 'absolute', bottom: '14px', left: '60px',
           fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)',
@@ -359,7 +315,6 @@ function DialogueOverlay({ dialogues, onComplete }) {
           {idx + 1} / {dialogues.length}
         </div>
       </div>
-
       <style>{`
         @keyframes arrowPulse {
           0%, 100% { transform: translateX(0); opacity: 0.55; }
@@ -374,7 +329,11 @@ function DialogueOverlay({ dialogues, onComplete }) {
 // IntroComic
 // ─────────────────────────────────────────────────────────────
 function IntroComic({ onComplete }) {
-  const panels = ['${BASE}comics/intro/panel1.png', '${BASE}comics/intro/panel2.png', '${BASE}comics/intro/panel3.png']
+  const panels = [
+    `${BASE}comics/intro/panel1.png`,
+    `${BASE}comics/intro/panel2.png`,
+    `${BASE}comics/intro/panel3.png`,
+  ]
   const [visible, setVisible] = useState(1)
   const handleClick = () => {
     if (visible < panels.length) setVisible(visible + 1)
@@ -436,11 +395,6 @@ function SceneModels({ selectedObject, setSelectedObject, showNakaiIcon, onNakai
           <Palace04 />
         </group>
       </Select>
-      {/* <Select enabled={selectedObject === 'palace05'}>
-        <group onClick={(e) => { e.stopPropagation(); setSelectedObject('palace05') }}>
-          <Palace05 />
-        </group>
-      </Select> */}
       <Select enabled={selectedObject === 'palace06'}>
         <group onClick={(e) => { e.stopPropagation(); setSelectedObject('palace06') }}>
           <Palace06 />
@@ -461,14 +415,14 @@ function SceneModels({ selectedObject, setSelectedObject, showNakaiIcon, onNakai
       {showNakaiIcon && (
         <StandingIconBillboard
           position={[14, 17, 10]}
-          imagePath="/UI/standing_icon/nakai_standing.png"
+          imagePath={`${BASE}UI/standing_icon/nakai_standing.png`}
           onClick={onNakaiIconClick}
         />
       )}
       {showHyungdooIcon && (
         <StandingIconBillboard
           position={[14, 17, 10]}
-          imagePath="/UI/standing_icon/hyungdoo_standing.png"
+          imagePath={`${BASE}UI/standing_icon/hyungdoo_standing.png`}
           onClick={onHyungdooIconClick}
         />
       )}
@@ -513,10 +467,10 @@ function ImageSlideshow({ images, onComplete }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ChoiceImage — 이미지 로드 실패 시 텍스트 fallback
+// ChoiceImage
 // ─────────────────────────────────────────────────────────────
 function ChoiceImage({ src, label }) {
-  const [status, setStatus] = React.useState('loading') // 'loading' | 'ok' | 'fail'
+  const [status, setStatus] = React.useState('loading')
   if (!src || status === 'fail') return (
     <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xl)', color: 'var(--color-text)', textAlign: 'center', lineHeight: 1.4 }}>
       {label}
@@ -529,21 +483,19 @@ function ChoiceImage({ src, label }) {
       onLoad={() => setStatus('ok')}
       onError={() => setStatus('fail')}
       style={{
-        maxWidth: '90%', maxHeight: '180px',
-        objectFit: 'contain',
-        opacity: status === 'ok' ? 1 : 0,
-        transition: 'opacity 0.2s ease',
+        maxWidth: '90%', maxHeight: '180px', objectFit: 'contain',
+        opacity: status === 'ok' ? 1 : 0, transition: 'opacity 0.2s ease',
       }}
     />
   )
 }
 
 // ─────────────────────────────────────────────────────────────
-// NameChoiceOverlay — 4개 선택지
+// NameChoiceOverlay
 // ─────────────────────────────────────────────────────────────
 const NAME_CHOICES = [
-  { id: 'korean',     label: 'Misun Tree',      sublabel: '미선나무',                  img: '${BASE}typo/mison_namu.svg'  },
-  { id: 'japanese',   label: 'Uchiwa-noki',      sublabel: 'うちわのき',               img: '${BASE}typo/Uchiwa-noki.svg' },
+  { id: 'korean',     label: 'Misun Tree',      sublabel: '미선나무',                  img: `${BASE}typo/mison_namu.svg`  },
+  { id: 'japanese',   label: 'Uchiwa-noki',      sublabel: 'うちわのき',               img: `${BASE}typo/Uchiwa-noki.svg` },
   { id: 'scientific', label: 'Scientific Name',  sublabel: 'Abeliophyllum distichum', img: null },
   { id: 'english',    label: 'White Forsythia',  sublabel: 'English Name',            img: null },
 ]
@@ -600,10 +552,14 @@ function NameChoiceOverlay({ onChoice }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// EndingContent (True Ending — Korean only)
+// EndingContent
 // ─────────────────────────────────────────────────────────────
 function EndingContent({ onComplete }) {
-  const panels = ['${BASE}comics/ending/panel1.png', '${BASE}comics/ending/panel2.png', '${BASE}comics/ending/panel3.png']
+  const panels = [
+    `${BASE}comics/ending/panel1.png`,
+    `${BASE}comics/ending/panel2.png`,
+    `${BASE}comics/ending/panel3.png`,
+  ]
   const [current, setCurrent] = useState(0)
   const [fadeOut, setFadeOut] = useState(false)
   const handleClick = () => {
@@ -639,7 +595,7 @@ function Credits({ onComplete }) {
         </h1>
         <div style={{ marginBottom: 'var(--spacing-2xl)' }}>
           <h2 style={{ marginBottom: 'var(--spacing-lg)' }}>Timeline & Infographic</h2>
-          <img src="${BASE}infographic.png" alt="Infographic" style={{ maxWidth: '100%', marginBottom: 'var(--spacing-lg)', borderRadius: 'var(--border-radius-md)' }} />
+          <img src={`${BASE}infographic.png`} alt="Infographic" style={{ maxWidth: '100%', marginBottom: 'var(--spacing-lg)', borderRadius: 'var(--border-radius-md)' }} />
         </div>
         <div style={{ marginBottom: 'var(--spacing-2xl)', textAlign: 'left' }}>
           <h2 style={{ marginBottom: 'var(--spacing-lg)', textAlign: 'center' }}>참고 문헌 & 사료</h2>
@@ -662,7 +618,7 @@ function Credits({ onComplete }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ErrorBoundary — Canvas 에러 시 흰 화면 방지
+// ErrorBoundary
 // ─────────────────────────────────────────────────────────────
 class CanvasErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false } }
@@ -687,7 +643,7 @@ class CanvasErrorBoundary extends React.Component {
 // Main App
 // ─────────────────────────────────────────────────────────────
 function App() {
-  usePreloadImages() // 모든 배경 + 캐릭터 이미지 미리 로드
+  usePreloadImages()
 
   const [currentStage, setCurrentStage] = useState(STAGES.INTRO_COMIC)
   const [selectedObject, setSelectedObject] = useState(null)
@@ -696,9 +652,9 @@ function App() {
   const [showChapter2Interaction,  setShowChapter2Interaction]  = useState(false)
 
   const chapterImages = {
-    1: ['${BASE}video/chp_01_01.jpg', '${BASE}video/chp_01_02.jpg', '${BASE}video/chp_01_03.jpg'],
-    2: ['${BASE}video/chp_02_01.jpg', '${BASE}video/chp_02_02.jpg', '${BASE}video/chp_02_03.jpg'],
-    3: ['${BASE}video/chp_03_01.jpg', '${BASE}video/chp_03_02.jpg', '${BASE}video/chp_03_03.jpg'],
+    1: [`${BASE}video/chp_01_01.jpg`, `${BASE}video/chp_01_02.jpg`, `${BASE}video/chp_01_03.jpg`],
+    2: [`${BASE}video/chp_02_01.jpg`, `${BASE}video/chp_02_02.jpg`, `${BASE}video/chp_02_03.jpg`],
+    3: [`${BASE}video/chp_03_01.jpg`, `${BASE}video/chp_03_02.jpg`, `${BASE}video/chp_03_03.jpg`],
   }
 
   const handleStageComplete = (nextStage) => {
@@ -719,56 +675,44 @@ function App() {
 
       {isIn3DSpace && (
         <>
-          {/* ── 배경 레이어들 — Canvas 뒤에 위치, CSS 크로스페이드 ── */}
-          {/* Chapter 1 / Garden Arrival / Endings 배경 */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 0,
-            backgroundImage: 'url(${BASE}images/Nakai_bg.png)',
+            backgroundImage: `url(${BASE}images/Nakai_bg.png)`,
             backgroundSize: 'cover', backgroundPosition: 'center',
             opacity: (
               currentStage === STAGES.GARDEN_ARRIVAL ||
               currentStage.includes('chapter_1') ||
               currentStage.includes('ending_')
             ) ? 1 : 0,
-            transition: 'opacity 0.5s ease',
-            pointerEvents: 'none',
+            transition: 'opacity 0.5s ease', pointerEvents: 'none',
           }} />
-          {/* Chapter 2 배경 */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 0,
-            backgroundImage: 'url(${BASE}images/Jang_bg.png)',
+            backgroundImage: `url(${BASE}images/Jang_bg.png)`,
             backgroundSize: 'cover', backgroundPosition: 'center',
             opacity: currentStage.includes('chapter_2') ? 1 : 0,
-            transition: 'opacity 0.5s ease',
-            pointerEvents: 'none',
+            transition: 'opacity 0.5s ease', pointerEvents: 'none',
           }} />
-          {/* Chapter 3 / 기본 배경 */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 0,
-            backgroundImage: 'url(${BASE}images/Paper_tex_2.png)',
+            backgroundImage: `url(${BASE}images/Paper_tex_2.png)`,
             backgroundSize: 'cover', backgroundPosition: 'center',
             opacity: (
               currentStage.includes('chapter_3') ||
               currentStage === STAGES.NAME_CHOICE
             ) ? 1 : 0,
-            transition: 'opacity 0.5s ease',
-            pointerEvents: 'none',
+            transition: 'opacity 0.5s ease', pointerEvents: 'none',
           }} />
 
-          {/* Garden Arrival */}
           {currentStage === STAGES.GARDEN_ARRIVAL && (
             <DialogueOverlay dialogues={DIALOGUES.gardenArrival} onComplete={() => handleStageComplete(STAGES.CHAPTER_1_DIALOGUE)} />
           )}
-
-          {/* Chapter 1 */}
           {currentStage === STAGES.CHAPTER_1_DIALOGUE && showChapter1Interaction && (
             <DialogueOverlay dialogues={DIALOGUES.chapter1} onComplete={() => handleStageComplete(STAGES.CHAPTER_1_VIDEO)} />
           )}
           {currentStage === STAGES.CHAPTER_1_VIDEO && (
             <ImageSlideshow images={chapterImages[1]} onComplete={() => handleStageComplete(STAGES.CHAPTER_2_DIALOGUE)} />
           )}
-
-          {/* Chapter 2 */}
           {currentStage === STAGES.CHAPTER_2_DIALOGUE && !showHyungdooIcon && !showChapter2Interaction && (
             <DialogueOverlay dialogues={DIALOGUES.chapter2Reflection} onComplete={() => setShowHyungdooIcon(true)} />
           )}
@@ -778,16 +722,12 @@ function App() {
           {currentStage === STAGES.CHAPTER_2_VIDEO && (
             <ImageSlideshow images={chapterImages[2]} onComplete={() => handleStageComplete(STAGES.CHAPTER_3_DIALOGUE)} />
           )}
-
-          {/* Chapter 3 */}
           {currentStage === STAGES.CHAPTER_3_DIALOGUE && (
             <DialogueOverlay dialogues={DIALOGUES.chapter3} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />
           )}
           {currentStage === STAGES.CHAPTER_3_VIDEO && (
             <ImageSlideshow images={chapterImages[3]} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />
           )}
-
-          {/* Name Choice */}
           {currentStage === STAGES.NAME_CHOICE && (
             <NameChoiceOverlay onChoice={(choice) => {
               if (choice === 'korean')          handleStageComplete(STAGES.ENDING_COMIC)
@@ -796,8 +736,6 @@ function App() {
               else if (choice === 'english')    handleStageComplete(STAGES.ENDING_4_DIALOGUE)
             }} />
           )}
-
-          {/* Branching Endings */}
           {currentStage === STAGES.ENDING_2_DIALOGUE && (
             <DialogueOverlay dialogues={DIALOGUES.ending2} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />
           )}
@@ -808,14 +746,9 @@ function App() {
             <DialogueOverlay dialogues={DIALOGUES.ending4} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />
           )}
 
-          {/* ── Canvas — 배경 투명, zIndex 1 ── */}
           <CanvasErrorBoundary>
             <Canvas
-              style={{
-                position: 'fixed', inset: 0,
-                zIndex: 1,
-                background: 'transparent',
-              }}
+              style={{ position: 'fixed', inset: 0, zIndex: 1, background: 'transparent' }}
               camera={{ position: [0, 20, 50], fov: 65 }}
               shadows
               gl={{ antialias: true, powerPreference: 'high-performance', alpha: true }}
