@@ -1,9 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   
-  base: '/Garden-of-Liberation/',
+  /**
+   * Only set the base path for production builds. During development, we want to use the root path for easier local testing.
+   * This allows us to serve the app correctly both in development and when deployed to GitHub Pages.
+   */
+  base: command === 'build' ? '/Garden-of-Liberation/' : '/',
   plugins: [react()],
   
   // Three.js 최적화
@@ -53,4 +57,4 @@ export default defineConfig({
     target: 'esnext'
   }
 
-})
+}))
