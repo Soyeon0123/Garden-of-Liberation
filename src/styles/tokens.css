@@ -1,0 +1,163 @@
+/* ============================================================
+   DESIGN TOKENS
+   졸업작품 · React + R3F + Vite
+   tokens.css — :root 변수 + 테마 오버라이드
+   ============================================================ */
+
+:root {
+
+  /* ----------------------------------------------------------
+     COLOR TOKENS
+     ---------------------------------------------------------- */
+
+  --bg-color:              #ece4da;
+  --primary-color:         #282828;
+  --secondary-color:       #583c2b;
+  --color-text:            #282828;
+  --color-text-secondary:  #583c2b;
+  --color-text-muted:      #7a6e62;
+  --color-accent:          #ae1a1b;
+  --color-accent-secondary:#0042AF;
+  --color-accent-gold:     #e2c660;
+  --color-accent-green:    #283618;
+
+
+  /* ----------------------------------------------------------
+     CORNER ACCENT TOKENS
+     ---------------------------------------------------------- */
+
+  --corner-color:  var(--secondary-color);   /* #583c2b 갈색 */
+  --corner-size:   20px;
+  --corner-weight: 2px;
+
+
+  /* ----------------------------------------------------------
+     TYPOGRAPHY TOKENS
+     ---------------------------------------------------------- */
+
+  /* Font Families */
+  --font-heading: 'Operetta', serif;
+  --font-body:    'Steradian', sans-serif;
+
+  /* Font Sizes */
+  --font-size-xs:  12px;
+  --font-size-sm:  14px;
+  --font-size-md:  16px;
+  --font-size-lg:  20px;
+  --font-size-xl:  28px;
+  --font-size-2xl: 40px;
+
+
+  /* ----------------------------------------------------------
+     SPACING TOKENS
+     ---------------------------------------------------------- */
+
+  --spacing-xs:  4px;
+  --spacing-sm:  8px;
+  --spacing-md:  16px;
+  --spacing-lg:  32px;
+  --spacing-xl:  64px;
+  --spacing-2xl: 96px;
+
+
+  /* ----------------------------------------------------------
+     BORDER TOKENS
+     ---------------------------------------------------------- */
+
+  /* Border Radius */
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 16px;
+
+  /* Border Thickness */
+  --border-thickness-thin:   1px;
+  --border-thickness-medium: 2px;
+  --border-thickness-thick:  4px;
+
+
+  /* ----------------------------------------------------------
+     TEXTURE TOKENS
+     Vite: 이미지는 /public/images/ 폴더 기준
+     ---------------------------------------------------------- */
+
+  /* Image Textures */
+  --paper-tex-bg:   url('/images/Paper_tex_01.png');
+  --paper-tex-bg-2: url('/images/Paper_tex_2.png');
+  --paper-tex-bg-3: url('/images/Paper_tex_3.png');
+
+  /* CSS-only Paper Texture (이미지 없어도 작동) */
+  --paper-tex-css-1:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0.04) 0px,
+      rgba(255,255,255,0.04) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      -90deg,
+      rgba(0,0,0,0.1) 0px,
+      rgba(255,255,255,0.04) 4px,
+      transparent 1px,
+      transparent 4px
+    );
+
+  /* Arrow Icon */
+  --basic-arrow: url('/images/arrow-icon.png');
+
+}
+
+
+/* ============================================================
+   THEME OVERRIDES  — data-theme attribute 방식 유지
+   React에서: <div data-theme="nakai"> 또는
+              document.body.setAttribute('data-theme', 'nakai')
+   ============================================================ */
+
+/* Nakai Theme — 어두운 먹 느낌 */
+[data-theme="nakai"] {
+  --bg-color:             #1a1210;
+  --primary-color:        #e8dcc8;
+  --secondary-color:      #c9b99a;
+  --color-text:           #e8dcc8;
+  --color-text-secondary: #c9b99a;
+  --color-text-muted:     #8a7a6e;
+  --color-accent:         #ae1a1b;
+  --corner-color:         #ae1a1b;
+}
+
+/* Soyeon Theme — 청록 자연 느낌 */
+[data-theme="soyeon"] {
+  --bg-color:             #e8ede4;
+  --primary-color:        #1a2e12;
+  --secondary-color:      #2d4a20;
+  --color-text:           #1a2e12;
+  --color-text-secondary: #2d4a20;
+  --color-text-muted:     #6a7e62;
+  --color-accent:         #283618;
+  --corner-color:         #5a8a3c;
+}
+
+/* Original Theme — 미니멀 흑백 */
+[data-theme="original"] {
+  --bg-color:             #f5f5f5;
+  --primary-color:        #111111;
+  --secondary-color:      #444444;
+  --color-text:           #111111;
+  --color-text-secondary: #444444;
+  --color-text-muted:     #888888;
+  --color-accent:         #111111;
+  --corner-color:         #111111;
+}
+
+/* Brown Theme — 기본 한지 브라운 */
+[data-theme="brown"] {
+  --bg-color:             #ece4da;
+  --primary-color:        #282828;
+  --secondary-color:      #583c2b;
+  --color-text:           #28282b;
+  --color-text-secondary: #583c2b;
+  --color-text-muted:     #7a6e62;
+  --color-accent:         #282828;
+  --corner-color:         #e2c660;
+}

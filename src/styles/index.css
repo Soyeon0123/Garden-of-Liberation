@@ -1,0 +1,10 @@
+/* ============================================================
+   index.css
+   이 파일 하나만 main.jsx 에서 import 하면 됩니다.
+
+   import './styles/index.css'
+   ============================================================ */
+
+@import './tokens.css';
+@import './base.css';
+@import './components.css';

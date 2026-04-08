@@ -1,0 +1,348 @@
+/* ============================================================
+   OVERLAY UI COMPONENTS
+   overlays.css — 대화창, 선택창, 코믹 등 게임 UI 오버레이
+   tokens.css 의 변수를 그대로 사용
+   ============================================================ */
+
+/* ----------------------------------------------------------
+   공통: 전체화면 오버레이 기반
+   ---------------------------------------------------------- */
+
+.overlay-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------
+   DIALOGUE BAR  (하단 대사창)
+   ---------------------------------------------------------- */
+
+.dialogue-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 220px;
+
+  background-image: var(--paper-tex-bg-3);
+  background-color: var(--bg-color);
+  background-size: cover;
+  background-repeat: repeat;
+
+  border-top: var(--border-thickness-medium) solid var(--corner-color);
+  padding: var(--spacing-lg) 50px;
+  cursor: pointer;
+  pointer-events: auto;
+
+  /* 코너 액센트 */
+  position: absolute;
+}
+
+/* 코너 장식 (top-left) */
+.dialogue-bar::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  width: var(--corner-size);
+  height: var(--corner-size);
+  border: var(--corner-weight) solid var(--corner-color);
+  border-right: none;
+  border-bottom: none;
+}
+
+.dialogue-bar__character {
+  font-family: var(--font-heading);
+  font-size: var(--font-size-lg);
+  color: var(--color-accent);
+  margin-bottom: var(--spacing-sm);
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--secondary-color);
+  padding-bottom: var(--spacing-xs);
+  display: inline-block;
+}
+
+/* Nakai 전용 강조색 */
+.dialogue-bar__character--nakai {
+  color: var(--color-accent);
+}
+
+/* Soyeon 전용 강조색 */
+.dialogue-bar__character--soyeon {
+  color: var(--color-accent-secondary);
+}
+
+.dialogue-bar__text {
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  line-height: 1.8;
+  max-width: 900px;
+  margin-top: var(--spacing-sm);
+}
+
+.dialogue-bar__next {
+  position: absolute;
+  bottom: var(--spacing-md);
+  right: 50px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  animation: arrowPulse 1.4s ease-in-out infinite;
+}
+
+.dialogue-bar__counter {
+  position: absolute;
+  bottom: var(--spacing-md);
+  left: 50px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* 화살표 애니메이션 */
+@keyframes arrowPulse {
+  0%, 100% { transform: translateX(0); opacity: 0.5; }
+  50%       { transform: translateX(5px); opacity: 1; }
+}
+
+
+/* ----------------------------------------------------------
+   CHARACTER FIGURE  (캐릭터 일러스트)
+   ---------------------------------------------------------- */
+
+.character-figure {
+  position: absolute;
+  bottom: 220px; /* dialogue-bar 높이만큼 위에 */
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.character-figure--left  { left: 10%; }
+.character-figure--right { right: 10%; }
+
+.character-figure--active   { opacity: 1; }
+.character-figure--inactive { opacity: 0.45; filter: grayscale(20%); }
+
+.character-figure img {
+  height: 600px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.7));
+}
+
+
+/* ----------------------------------------------------------
+   CHOICE WINDOW  (선택지 창)
+   ---------------------------------------------------------- */
+
+.choice-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xl);
+  z-index: 200;
+}
+
+.choice-overlay__title {
+  font-family: var(--font-heading);
+  font-size: var(--font-size-2xl);
+  color: var(--bg-color);
+  letter-spacing: var(--tracking-wider);
+  text-align: center;
+}
+
+.choice-overlay__options {
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-lg);
+  align-items: center;
+}
+
+/* 각 선택 카드 */
+.choice-card {
+  width: 700px;
+  height: 350px;
+  background: rgba(236, 228, 218, 0.06);
+  border: var(--border-thickness-medium) solid rgba(226, 198, 96, 0.3);
+  border-radius: var(--border-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: var(--spacing-xl);
+  position: relative;
+
+  transition: background 0.3s ease, border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.choice-card::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  width: var(--corner-size);
+  height: var(--corner-size);
+  border: var(--corner-weight) solid var(--corner-color);
+  border-right: none;
+  border-bottom: none;
+  transition: border-color 0.3s ease;
+}
+
+.choice-card:hover,
+.choice-card--hovered {
+  background: rgba(236, 228, 218, 0.12);
+  border-color: var(--color-accent-gold);
+  transform: scale(1.04);
+  box-shadow: 0 12px 40px rgba(226, 198, 96, 0.2);
+}
+
+.choice-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: filter 0.3s ease;
+}
+
+.choice-card:hover img {
+  filter: brightness(1.1);
+}
+
+
+/* ----------------------------------------------------------
+   INTRO / ENDING COMIC
+   ---------------------------------------------------------- */
+
+.comic-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #0a0a0a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xl);
+  cursor: pointer;
+  z-index: 9999;
+}
+
+.comic-overlay__panel {
+  height: 65vh;
+  width: auto;
+  object-fit: contain;
+  user-select: none;
+  opacity: 0;
+  animation: panelFadeIn 0.5s ease-in-out forwards;
+}
+
+.comic-overlay__hint {
+  position: absolute;
+  bottom: var(--spacing-xl);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  color: var(--bg-color);
+  opacity: 0.7;
+  animation: arrowPulse 2s ease-in-out infinite;
+  white-space: nowrap;
+}
+
+@keyframes panelFadeIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+
+/* ----------------------------------------------------------
+   CREDITS
+   ---------------------------------------------------------- */
+
+.credits-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--primary-color); /* 테마 따라감 */
+  color: var(--bg-color);
+  overflow-y: auto;
+  padding: var(--spacing-2xl);
+  z-index: 9999;
+}
+
+.credits-overlay__inner {
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.credits-overlay__title {
+  font-family: var(--font-heading);
+  font-size: var(--font-size-2xl);
+  color: var(--color-accent-gold);
+  margin-bottom: var(--spacing-xl);
+  letter-spacing: var(--tracking-wider);
+}
+
+.credits-overlay__progress {
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-accent-secondary));
+  margin: 0 auto;
+  animation: creditsLoading 8s linear forwards;
+  width: 0;
+}
+
+@keyframes creditsLoading {
+  0%   { width: 0; }
+  100% { width: 400px; }
+}
+
+/* ----------------------------------------------------------
+   SLIDESHOW COUNTER
+   ---------------------------------------------------------- */
+
+.slideshow-counter {
+  position: absolute;
+  top: var(--spacing-xl);
+  right: var(--spacing-xl);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  color: var(--bg-color);
+  opacity: 0.7;
+  background: rgba(0, 0, 0, 0.5);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius-lg);
+}
+
+/* ----------------------------------------------------------
+   STANDING ICON HINT  (R3F Html 안에서 사용)
+   ---------------------------------------------------------- */
+
+.standing-icon-hint {
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  color: var(--bg-color);
+  background: rgba(0, 0, 0, 0.7);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--corner-color);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: arrowPulse 2s ease-in-out infinite;
+}

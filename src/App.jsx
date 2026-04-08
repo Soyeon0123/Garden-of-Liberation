@@ -1,157 +1,223 @@
 import React, { Suspense, useState } from 'react'
-import { Canvas, useLoader } from '@react-three/fiber'
+import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Environment, Html, Billboard } from '@react-three/drei'
 import { EffectComposer, Outline, Selection, Select } from '@react-three/postprocessing'
 import * as THREE from 'three'
+import './styles/tokens.css'
 
-// 3D 모델 imports
-import Palace from './components/3D/models/Palace'
+const BASE = import.meta.env.BASE_URL
+
+// ─── 3D 모델 imports ──────────────────────────────────────────
+import Palace   from './components/3D/models/Palace'
+import Palace02 from './components/3D/models/Palace02'
+import Palace03 from './components/3D/models/Palace03'
+import Palace04 from './components/3D/models/Palace04'
+import Palace05 from './components/3D/models/Palace05'
+import Palace06 from './components/3D/models/Palace06'
 import Structure from './components/3D/models/Structure'
 
-// Stage 정의
+// ─── Stage 정의 ───────────────────────────────────────────────
 const STAGES = {
-  INTRO_COMIC: 'intro_comic',
+  INTRO_COMIC:        'intro_comic',
+  GARDEN_ARRIVAL:     'garden_arrival',
   CHAPTER_1_DIALOGUE: 'chapter_1_dialogue',
-  CHAPTER_1_VIDEO: 'chapter_1_video',
+  CHAPTER_1_VIDEO:    'chapter_1_video',
   CHAPTER_2_DIALOGUE: 'chapter_2_dialogue',
-  CHAPTER_2_VIDEO: 'chapter_2_video',
+  CHAPTER_2_VIDEO:    'chapter_2_video',
   CHAPTER_3_DIALOGUE: 'chapter_3_dialogue',
-  CHAPTER_3_VIDEO: 'chapter_3_video',
-  NAME_CHOICE: 'name_choice',
-  RETRY_DIALOGUE: 'retry_dialogue',
-  ENDING_COMIC: 'ending_comic',
-  CREDITS: 'credits'
+  CHAPTER_3_VIDEO:    'chapter_3_video',
+  NAME_CHOICE:        'name_choice',
+  ENDING_2_DIALOGUE:  'ending_2_dialogue',
+  ENDING_3_DIALOGUE:  'ending_3_dialogue',
+  ENDING_4_DIALOGUE:  'ending_4_dialogue',
+  ENDING_COMIC:       'ending_comic',
+  CREDITS:            'credits',
 }
 
-// Flower Billboard 컴포넌트 추가 (디버깅 버전)
+// ─── 캐릭터 이미지 헬퍼 ──────────────────────────────────────
+const getCharImg = (charName, expression) => {
+  if (!charName) return null
+  const expr = expression ? `_${expression}` : ''
+  return `${BASE}UI/figure_illust/${charName}${expr}.png`  // ← /UI → BASE+UI
+}
+
+// ─── 흰 outline filter (활성 캐릭터) ─────────────────────────
+const ACTIVE_OUTLINE = `
+  drop-shadow(2px 0px 0px #ffffff)
+  drop-shadow(-2px 0px 0px #ffffff)
+  drop-shadow(0px 2px 0px #ffffff)
+  drop-shadow(0px -2px 0px #ffffff)
+`
+
+// ─── 이미지 프리로드 (배경 + 캐릭터) ────────────────────────
+const ALL_PRELOAD = [
+  '${BASE}images/Nakai_bg.png', '${BASE}images/Jang_bg.png', '${BASE}images/Paper_tex_2.png',
+  '${BASE}images/mison_namu.png', '${BASE}typo/mison_namu.png', '${BASE}typo/Uchiwa-noki.svg',
+  '${BASE}UI/figure_illust/nakai.png',       '${BASE}UI/figure_illust/nakai_smile.png',
+  '${BASE}UI/figure_illust/nakai_annoying.png', '${BASE}UI/figure_illust/nakai_exciting.png',
+  '${BASE}UI/figure_illust/nakai_dissapointed.png',
+  '${BASE}UI/figure_illust/soyeon.png',      '${BASE}UI/figure_illust/soyeon_curious.png',
+  '${BASE}UI/figure_illust/soyeon_smile.png', '${BASE}UI/figure_illust/soyeon_surprised.png',
+  '${BASE}UI/figure_illust/soyeon_dissapointed.png',
+  '${BASE}UI/figure_illust/minjung.png',     '${BASE}UI/figure_illust/minjung_smile.png',
+  '${BASE}UI/figure_illust/minjung_surprised.png', '${BASE}UI/figure_illust/minjung_dissapointed.png',
+  '${BASE}UI/figure_illust/hyungdoo.png',    '${BASE}UI/figure_illust/hyungdoo_smile.png',
+  '${BASE}UI/figure_illust/hyungdoo_trueSmile.png', '${BASE}UI/figure_illust/hyungdoo_dissapointed.png',
+  '${BASE}UI/standing_icon/nakai_standing.png', '${BASE}UI/standing_icon/hyungdoo_standing.png',
+]
+
+function usePreloadImages() {
+  React.useEffect(() => {
+    ALL_PRELOAD.forEach(src => { const i = new Image(); i.src = src })
+  }, [])
+}
+
+// ─── 대사창 좌우 고정 여백 (px) ──────────────────────────────
+const BOX_MARGIN = 50
+
+// ─────────────────────────────────────────────────────────────
+// 대사 데이터
+// ─────────────────────────────────────────────────────────────
+const DIALOGUES = {
+
+  gardenArrival: [
+    { character: 'Soyeon', expression: 'curious', text: "The nameplate... it's empty.",                                           side: 'right', leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Mother', expression: null,       text: "You're right... And somehow, this place feels familiar.",                side: 'left',  leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Soyeon', expression: 'curious', text: "Mom, didn't you tell me this plant's name earlier? What was it again?",   side: 'right', leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Mother', expression: null,       text: "That's strange... I definitely knew it... but I suddenly can't remember...", side: 'left', leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Soyeon', expression: 'curious', text: "Should we ask him?",                                                     side: 'right', leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Mother', expression: 'smile',    text: "Yes... that's a good idea. Maybe he knows the name.",                   side: 'left',  leftChar: 'minjung', rightChar: 'soyeon' },
+  ],
+
+  chapter1: [
+    { character: 'Nakai',  expression: null,           text: "...Who are you?",                                                                                                                     side: 'left',  leftChar: 'nakai', rightChar: 'soyeon'  },
+    { character: 'Soyeon', expression: 'curious',      text: "Oh — hello. It's our first time here... Do you happen to know the name of that plant?",                                               side: 'right', leftChar: 'nakai', rightChar: 'soyeon'  },
+    { character: 'Mother', expression: null,           text: "My daughter is curious about it. Would you be willing to tell us?",                                                                   side: 'right', leftChar: 'nakai', rightChar: 'minjung' },
+    { character: 'Nakai',  expression: null,           text: "Why are you interested in its name?",                                                                                                 side: 'left',  leftChar: 'nakai', rightChar: 'minjung' },
+    { character: 'Nakai',  expression: 'smile',        text: "I discovered this tree in Korea in 1917. I call it Uchiwa-noki.",                                                                    side: 'left',  leftChar: 'nakai', rightChar: 'soyeon'  },
+    { character: 'Soyeon', expression: 'curious',      text: "Uchiwa-noki...? If it was discovered in Korea... Wouldn't that make it a Korean plant?",                                              side: 'right', leftChar: 'nakai', rightChar: 'soyeon'  },
+    { character: 'Nakai',  expression: null,           text: "I was the first to publish it in academia. That's why my name — Nakai — appears in the scientific name.",                             side: 'left',  leftChar: 'nakai', rightChar: 'soyeon'  },
+    { character: 'Mother', expression: null,           text: "Is publishing first really that important?",                                                                                           side: 'right', leftChar: 'nakai', rightChar: 'minjung' },
+    { character: 'Nakai',  expression: null,           text: "Of course. The scholar who first describes a new plant receives naming rights. Leaving a name behind... is a kind of immortality.",   side: 'left',  leftChar: 'nakai', rightChar: 'minjung' },
+    { character: 'Soyeon', expression: 'dissapointed', text: "Then... is there no Korean name?",                                                                                                    side: 'right', leftChar: 'nakai', rightChar: 'soyeon'  },
+    { character: 'Nakai',  expression: 'annoying',     text: "A Korean name? Korea is part of the Japanese Empire... Why would it need a separate name?",                                           side: 'left',  leftChar: 'nakai', rightChar: 'soyeon'  },
+    { character: 'Soyeon', expression: 'surprised',    text: "Wait... You're not from the present, are you?",                                                                                       side: 'right', leftChar: 'nakai', rightChar: 'soyeon'  },
+    { character: 'Mother', expression: 'surprised',    text: "Soyeon... this looks like the Japanese colonial period.",                                                                              side: 'right', leftChar: 'nakai', rightChar: 'minjung' },
+    { character: 'Nakai',  expression: 'exciting',     text: "It seems I'll have to personally demonstrate the academic contributions of the Japanese Empire.",                                       side: 'left',  leftChar: 'nakai', rightChar: 'minjung' },
+  ],
+
+  chapter2Reflection: [
+    { character: 'Soyeon', expression: null,           text: "I had no idea plant names followed such a structured system...",                                side: 'right', leftChar: null, rightChar: 'soyeon'  },
+    { character: 'Mother', expression: null,           text: "Yes... and it's surprising how Western imperial science was adopted during the colonial period.", side: 'right', leftChar: null, rightChar: 'minjung' },
+    { character: 'Soyeon', expression: 'dissapointed', text: "...For some reason... the tree looks a little sad now.",                                         side: 'right', leftChar: null, rightChar: 'soyeon'  },
+    { character: 'Mother', expression: null,           text: "I understand... But I don't think that's the name we were looking for.",                         side: 'right', leftChar: null, rightChar: 'minjung' },
+  ],
+
+  chapter2Main: [
+    { character: 'Hyungdoo', expression: null,          text: "...Who are you?",                                                                                                                         side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Soyeon',   expression: 'curious',     text: "Sorry for surprising you. We're trying to find the name of that plant in the center.",                                                     side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Mother',   expression: null,          text: "My daughter really wants to know its name.",                                                                                               side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
+    { character: 'Hyungdoo', expression: 'smile',       text: "That plant was recorded in the Korean Plant Name Collection. It's called the Misun Tree.",                                                 side: 'left',  leftChar: 'hyungdoo', rightChar: 'minjung' },
+    { character: 'Soyeon',   expression: 'curious',     text: "May I ask who you are?",                                                                                                                   side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Hyungdoo', expression: null,          text: "My name is Chang Hyung-doo. I'm a botanist studying plants here in Korea.",                                                                side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Hyungdoo', expression: 'smile',       text: "We formed the Joseon Botanical Research Society. One of our most important goals was to give Korean names to plants previously known only by Japanese names.", side: 'left', leftChar: 'hyungdoo', rightChar: 'soyeon' },
+    { character: 'Soyeon',   expression: 'curious',     text: "Why was it important not to use the Japanese name?",                                                                                       side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Hyungdoo', expression: null,          text: "I believed Korean plants should be seen through Korean eyes. I wanted to give beautiful names to the plants that grow on this land... names that belonged to us.", side: 'left', leftChar: 'hyungdoo', rightChar: 'soyeon' },
+    { character: 'Soyeon',   expression: null,          text: "I never realized that so much effort and history were hidden behind the names of plants...",                                                side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Mother',   expression: null,          text: "It's touching... and also a little sad that these stories aren't widely known.",                                                            side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
+    { character: 'Hyungdoo', expression: 'trueSmile',   text: "It's alright. If future generations continue to use Korean names and remember their meaning... that's enough.",                             side: 'left',  leftChar: 'hyungdoo', rightChar: 'minjung' },
+    { character: 'Soyeon',   expression: 'smile',       text: "Thank you for sharing this story.",                                                                                                        side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Mother',   expression: null,          text: "Now... we can finally write the name on the sign.",                                                                                        side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
+  ],
+
+  // Chapter 3 — 엄마 좌, 소연 우
+  chapter3: [
+    { character: 'Soyeon',     expression: 'surprised', text: "Wait... it's alive? Well... I mean, of course it's alive... but...",                   side: 'right',     leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Mother',     expression: 'surprised', text: "It's... talking?",                                                                       side: 'left',      leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Misun Tree', expression: null,        text: "This is... a place where anything is possible... Even my voice... can be heard here...", side: 'narration', leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Soyeon',     expression: 'curious',   text: "We found your name. If we write it on the sign... can we go back?",                      side: 'right',     leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Mother',     expression: null,        text: "Please... send us back to where we were.",                                               side: 'left',      leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Misun Tree', expression: null,        text: "Of course... But before that... would you listen to my story?",                          side: 'narration', leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Soyeon',     expression: null,        text: "There were so many stories hidden in a name...",                                         side: 'right',     leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Mother',     expression: null,        text: "I learned so much today... It wasn't just a plant name.",                                side: 'left',      leftChar: 'minjung', rightChar: 'soyeon' },
+    { character: 'Misun Tree', expression: null,        text: "A name... is more than a record... It is memory... So... what will you call me?",        side: 'narration', leftChar: 'minjung', rightChar: 'soyeon' },
+  ],
+
+  ending2: [
+    { character: 'Nakai',    expression: 'smile',        text: "So... like many others in Joseon, you've come to recognize the value of my work.",              side: 'left',  leftChar: 'nakai',    rightChar: 'soyeon'  },
+    { character: 'Hyungdoo', expression: 'dissapointed', text: "...If you understood what a name leaves behind... perhaps you might have chosen differently.",   side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Hyungdoo', expression: null,           text: "The colonization of Joseon... even reaches the names of plants...",                               side: 'left',  leftChar: 'hyungdoo', rightChar: 'minjung' },
+    { character: 'Soyeon',   expression: 'dissapointed', text: "...Maybe... we should have thought more carefully...",                                             side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+  ],
+
+  ending3: [
+    { character: 'Nakai',    expression: 'exciting',     text: "As expected. You recognize the greatness of Western classification systems.",                      side: 'left',  leftChar: 'nakai',    rightChar: 'soyeon'  },
+    { character: 'Hyungdoo', expression: 'dissapointed', text: "A scientific name... But it feels distant from our own identity.",                                 side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Mother',   expression: null,           text: "Latin... A language no longer spoken, yet still holding authority...",                              side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
+    { character: 'Hyungdoo', expression: 'dissapointed', text: "...The scholar's name based on priority... stands clearly.",                                        side: 'left',  leftChar: 'hyungdoo', rightChar: 'minjung' },
+    { character: 'Soyeon',   expression: 'dissapointed', text: "...Was that too quick of a decision?",                                                              side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+  ],
+
+  ending4: [
+    { character: 'Nakai',    expression: null,           text: "English...?",                                                                                      side: 'left',  leftChar: 'nakai',    rightChar: 'soyeon'  },
+    { character: 'Hyungdoo', expression: null,           text: "Why choose an English name?",                                                                       side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Mother',   expression: null,           text: "Did you choose English so more people could understand?",                                            side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
+    { character: 'Soyeon',   expression: null,           text: "...Yes... I thought more people could learn about it...",                                            side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Hyungdoo', expression: 'dissapointed', text: "But sharing the Korean name would also be meaningful...",                                            side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+    { character: 'Soyeon',   expression: 'dissapointed', text: "...Did I compromise without realizing it?",                                                          side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
+  ],
+}
+
+// ─────────────────────────────────────────────────────────────
+// FlowerBillboard — 수동 로딩 (로드 전 렌더 안 함 → 사각형 없음)
+// ─────────────────────────────────────────────────────────────
 function FlowerBillboard({ position = [0, 5, 0] }) {
   const [texture, setTexture] = React.useState(null)
-  const [error, setError] = React.useState(null)
-  
   React.useEffect(() => {
-    console.log('🌸 FlowerBillboard: 이미지 로딩 시작')
     const loader = new THREE.TextureLoader()
-    
-    loader.load(
-      '/images/flower.png',
-      (loadedTexture) => {
-        console.log('✅ FlowerBillboard: 이미지 로딩 성공!', loadedTexture)
-        setTexture(loadedTexture)
-      },
-      (progress) => {
-        console.log('⏳ FlowerBillboard: 로딩 중...', progress)
-      },
-      (err) => {
-        console.error('❌ FlowerBillboard: 이미지 로딩 실패', err)
-        setError(err)
-      }
-    )
+    loader.load('${BASE}images/mison_namu.png', (t) => setTexture(t))
   }, [])
-  
+  if (!texture) return null
   return (
-    <Billboard
-      follow={true}
-      lockX={false}
-      lockY={false}
-      lockZ={false}
-      position={position}
-    >
-      {/* 실제 이미지 - 크기를 10x10으로 증가, 밝기 조정 */}
+    <Billboard follow={true} lockX={false} lockY={false} lockZ={false} position={position}>
       <mesh>
-        <planeGeometry args={[35 , 35]} />
-        {texture ? (
-          <meshBasicMaterial 
-            map={texture} 
-            transparent={true}
-            side={THREE.DoubleSide}
-            opacity={1}
-            toneMapped={false}
-            color="#ffffff"
-          />
-        ) : (
-          <meshBasicMaterial 
-            color="lime"
-            side={THREE.DoubleSide}
-            opacity={0.8}
-            transparent={true}
-          />
-        )}
+        <planeGeometry args={[35, 35]} />
+        <meshBasicMaterial map={texture} transparent side={THREE.DoubleSide} opacity={1} toneMapped={false} color="#ffffff" />
       </mesh>
     </Billboard>
   )
 }
 
-// Standing Icon Billboard 컴포넌트 (클릭 가능)
+// ─────────────────────────────────────────────────────────────
+// StandingIconBillboard — 수동 로딩
+// ─────────────────────────────────────────────────────────────
 function StandingIconBillboard({ position = [0, 5, 0], imagePath, onClick }) {
   const [texture, setTexture] = React.useState(null)
   const [hovered, setHovered] = React.useState(false)
-  const meshRef = React.useRef()
-  
   React.useEffect(() => {
-    console.log('👤 StandingIcon: 이미지 로딩 시작', imagePath)
     const loader = new THREE.TextureLoader()
-    
-    loader.load(
-      imagePath,
-      (loadedTexture) => {
-        console.log('✅ StandingIcon: 이미지 로딩 성공!')
-        setTexture(loadedTexture)
-      },
-      undefined,
-      (err) => {
-        console.error('❌ StandingIcon: 이미지 로딩 실패', err)
-      }
-    )
+    loader.load(imagePath, (t) => setTexture(t))
   }, [imagePath])
-  
+  if (!texture) return null
   return (
-    <Billboard
-      follow={true}
-      lockX={false}
-      lockY={false}
-      lockZ={false}
-      position={position}
-    >
+    <Billboard follow={true} lockX={false} lockY={false} lockZ={false} position={position}>
       <mesh
-        ref={meshRef}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
-        onClick={(e) => {
-          e.stopPropagation()
-          onClick && onClick()
-        }}
+        onClick={(e) => { e.stopPropagation(); onClick?.() }}
       >
         <planeGeometry args={[40, 40]} />
-        {texture ? (
-          <meshBasicMaterial 
-            map={texture} 
-            transparent={true}
-            side={THREE.DoubleSide}
-            opacity={1}
-            toneMapped={false}
-            color="#ffffff"
-          />
-        ) : (
-          <meshBasicMaterial 
-            color="yellow"
-            side={THREE.DoubleSide}
-            opacity={0.8}
-            transparent={true}
-          />
-        )}
+        <meshBasicMaterial map={texture} transparent side={THREE.DoubleSide} opacity={1} toneMapped={false} color="#ffffff" />
       </mesh>
-      {/* 클릭 가능 표시 - hover 시에만 표시 */}
       {hovered && (
         <Html position={[0, -17, 0]} center>
           <div style={{
-            color: 'white',
-            fontSize: '16px',
+            color: 'white', fontSize: '16px',
             background: 'rgba(0,0,0,0.7)',
-            padding: '10px 20px',
-            borderRadius: '20px',
-            animation: 'pulse 2s ease-in-out infinite',
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap'
+            padding: '10px 20px', borderRadius: '20px',
+            pointerEvents: 'none', whiteSpace: 'nowrap',
+            border: '1px solid var(--color-accent-gold)',
+            fontFamily: 'var(--font-body)',
           }}>
             Click to start the conversation
           </div>
@@ -161,946 +227,423 @@ function StandingIconBillboard({ position = [0, 5, 0], imagePath, onClick }) {
   )
 }
 
-// Chapter 1 전용 인터랙션 오버레이 (nakai ↔ soyeon 교차 대화)
-function Chapter1InteractionOverlay({ onComplete }) {
-  const [dialogueIndex, setDialogueIndex] = useState(0)
-  
-  // Nakai와 Soyeon이 교차하는 대화
-  const dialogues = [
-    { character: "Nakai", text: "Wait… who are you, miss?", side: "left" },
-    { character: "Soyeon", text: "Huh… where am I? I was just at Changdeokgung a moment ago…", side: "right" },
-    { character: "Nakai", text: "This is the 1900s—back when I was studying plants in Joseon.", side: "left" },
-    { character: "Soyeon", text: "But… it's 2025 right now.", side: "right" },
-    { character: "Nakai", text: "So you're… not Japanese, then.", side: "left" },
-    { character: "Soyeon", text: "Who is this man…?", side: "right" },
-  ]
+// ─────────────────────────────────────────────────────────────
+// DialogueOverlay — 통합 대사 컴포넌트
+// ─────────────────────────────────────────────────────────────
+function DialogueOverlay({ dialogues, onComplete }) {
+  const [idx, setIdx] = useState(0)
+  const d = dialogues[idx]
 
-  const currentDialogue = dialogues[dialogueIndex]
+  const isLeftActive  = d.side === 'left'
+  const isRightActive = d.side === 'right'
+  const isNarration   = d.side === 'narration'
 
-  // 캐릭터 이미지 import 경로
-  const characterImages = {
-    nakai: '/src/components/UI/figure_illust/nakai.png',
-    soyeon: '/src/components/UI/figure_illust/soyeon.png'
-  }
+  // 항상 현재 표정 이미지 사용 (활성일 때만 표정 적용, 비활성은 기본 이미지)
+  const leftImg  = getCharImg(d.leftChar,  isLeftActive  ? d.expression : null)
+  const rightImg = getCharImg(d.rightChar, isRightActive ? d.expression : null)
+
+  const DIALOGUE_BOX_H = 220
+  const CHAR_HEIGHT     = '90vh'
 
   const handleClick = () => {
-    if (dialogueIndex < dialogues.length - 1) {
-      setDialogueIndex(dialogueIndex + 1)
-    } else {
-      // 모든 대사 완료
-      onComplete()
-    }
+    if (idx < dialogues.length - 1) setIdx(idx + 1)
+    else onComplete()
   }
 
-  // 현재 말하는 캐릭터
-  const currentCharacter = currentDialogue.character.toLowerCase()
-
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      pointerEvents: 'none',
-      zIndex: 100
-    }}>
-      {/* Nakai 일러스트 (좌측) */}
-      <div style={{
-        position: 'absolute',
-        bottom: '250px',
-        left: '10%',
-        pointerEvents: 'none',
-        opacity: currentCharacter === 'nakai' ? 1 : 0.5,
-        transition: 'opacity 0.3s ease',
-        animation: currentCharacter === 'nakai' ? 'fadeIn 0.5s ease-in-out' : 'none'
-      }}>
-        <img 
-          src={characterImages.nakai}
-          alt="Nakai"
-          style={{
-            height: '600px',
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 100 }}>
+
+      {/* 왼쪽 캐릭터 — 대사창 뒤에 위치, 위로 올라와 겹침 */}
+      {leftImg && (
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          zIndex: 101,
+          pointerEvents: 'none',
+        }}>
+          <img src={leftImg} alt={d.leftChar} style={{
+            height: CHAR_HEIGHT,
             width: 'auto',
             objectFit: 'contain',
-            filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.8))',
-          }}
-        />
-      </div>
+            display: 'block',
+            filter: isLeftActive ? ACTIVE_OUTLINE : 'none',
+            transition: 'filter 0.3s ease',
+          }} />
+        </div>
+      )}
 
-      {/* Soyeon 일러스트 (우측) */}
-      <div style={{
-        position: 'absolute',
-        bottom: '250px',
-        right: '10%',
-        pointerEvents: 'none',
-        opacity: currentCharacter === 'soyeon' ? 1 : 0.5,
-        transition: 'opacity 0.3s ease',
-        animation: currentCharacter === 'soyeon' ? 'fadeIn 0.5s ease-in-out' : 'none'
-      }}>
-        <img 
-          src={characterImages.soyeon}
-          alt="Soyeon"
-          style={{
-            height: '600px',
+      {/* 오른쪽 캐릭터 — 대사창 뒤에 위치 */}
+      {rightImg && (
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          right: 0,
+          zIndex: 101,
+          pointerEvents: 'none',
+        }}>
+          <img src={rightImg} alt={d.rightChar} style={{
+            height: CHAR_HEIGHT,
             width: 'auto',
             objectFit: 'contain',
-            filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.8))',
-          }}
-        />
-      </div>
+            display: 'block',
+            filter: isRightActive ? ACTIVE_OUTLINE : 'none',
+            transition: 'filter 0.3s ease',
+          }} />
+        </div>
+      )}
 
-      {/* 대사 UI */}
-      <div
-        onClick={handleClick}
-        style={{
-          position: 'absolute',
-          bottom: '0',
-          left: '0',
-          right: '0',
-          height: '220px',
-          background: 'linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.85))',
-          color: 'white',
-          padding: '30px 50px',
-          cursor: 'pointer',
-          fontFamily: 'system-ui, sans-serif',
-          pointerEvents: 'auto',
-          borderTop: '3px solid #ff69b4',
-          animation: 'slideUp 0.5s ease-out'
-        }}
-      >
+      {/* 대사창 — bottom 100px 띄움, zIndex 102 (캐릭터 앞) */}
+      <div onClick={handleClick} style={{
+        position: 'absolute',
+        bottom: '20px',
+        left: `${BOX_MARGIN}px`,
+        right: `${BOX_MARGIN}px`,
+        minHeight: `${DIALOGUE_BOX_H}px`,
+        zIndex: 102,
+        backgroundImage: 'var(--paper-tex-bg-3)', backgroundSize: 'cover',
+        backgroundColor: 'var(--bg-color)',
+        borderTop: 'var(--border-thickness-medium) solid var(--corner-color)',
+        border: '2px solid var(--corner-color)',
+        borderRadius: 'var(--border-radius-sm)',
+        padding: '24px 60px 36px',
+        cursor: 'pointer', pointerEvents: 'auto',
+        boxSizing: 'border-box',
+      }}>
+        {/* 코너 장식 */}
         <div style={{
-          fontSize: '22px',
-          fontWeight: 'bold',
-          color: '#ff69b4',
-          marginBottom: '15px',
-          textShadow: '0 0 10px #ff69b4'
+          position: 'absolute', top: '-2px', left: '-2px',
+          width: 'var(--corner-size)', height: 'var(--corner-size)',
+          borderTop: '3px solid var(--corner-color)',
+          borderLeft: '3px solid var(--corner-color)',
+        }} />
+
+        {/* 캐릭터 이름 */}
+        <div style={{
+          fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)',
+          color: isNarration
+            ? 'var(--color-accent-gold)'
+            : isLeftActive ? 'var(--color-accent)' : 'var(--color-accent-secondary)',
+          marginBottom: 'var(--spacing-sm)',
+          borderBottom: '1px solid var(--secondary-color)',
+          paddingBottom: 'var(--spacing-xs)', display: 'inline-block',
         }}>
-          {currentDialogue.character}
+          {d.character}
         </div>
+
+        {/* 대사 + 화살표 인라인 */}
         <div style={{
-          fontSize: '18px',
-          lineHeight: '1.8',
-          maxWidth: '900px'
+          fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-md)',
+          color: 'var(--color-text)', lineHeight: 1.8,
+          marginTop: 'var(--spacing-sm)',
+          fontStyle: isNarration ? 'italic' : 'normal',
         }}>
-          {currentDialogue.text}
+          {d.text}
+          <span style={{
+            display: 'inline-block',
+            width: '32px', height: '22px',
+            backgroundImage: 'var(--basic-arrow)',
+            backgroundSize: 'contain', backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'center',
+            verticalAlign: 'middle', marginLeft: '10px',
+            animation: 'arrowPulse 1.4s ease-in-out infinite',
+          }} />
         </div>
+
+        {/* 진행 카운터 */}
         <div style={{
-          position: 'absolute',
-          bottom: '25px',
-          right: '50px',
-          fontSize: '14px',
-          opacity: 0.8,
-          animation: 'pulse 2s ease-in-out infinite'
+          position: 'absolute', bottom: '14px', left: '60px',
+          fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)',
+          color: 'var(--color-text-muted)',
         }}>
-          {dialogueIndex < dialogues.length - 1 ? 'Click to continue ▼' : 'Click for next scene ▼'}
-        </div>
-        <div style={{
-          position: 'absolute',
-          bottom: '25px',
-          left: '50px',
-          fontSize: '12px',
-          opacity: 0.6
-        }}>
-          {dialogueIndex + 1} / {dialogues.length}
+          {idx + 1} / {dialogues.length}
         </div>
       </div>
 
       <style>{`
-        @keyframes fadeIn {
-          from { 
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to { 
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes slideUp {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
+        @keyframes arrowPulse {
+          0%, 100% { transform: translateX(0); opacity: 0.55; }
+          50%       { transform: translateX(5px); opacity: 1; }
         }
       `}</style>
     </div>
   )
 }
 
-// 인트로 웹코믹 컴포넌트 (3컷 가로 배치)
+// ─────────────────────────────────────────────────────────────
+// IntroComic
+// ─────────────────────────────────────────────────────────────
 function IntroComic({ onComplete }) {
-  const comicPanels = [
-    '/comics/intro/panel1.png',
-    '/comics/intro/panel2.png',
-    '/comics/intro/panel3.png',
-  ]
-
-  const [visiblePanels, setVisiblePanels] = useState(1)
-
+  const panels = ['${BASE}comics/intro/panel1.png', '${BASE}comics/intro/panel2.png', '${BASE}comics/intro/panel3.png']
+  const [visible, setVisible] = useState(1)
   const handleClick = () => {
-    if (visiblePanels < comicPanels.length) {
-      setVisiblePanels(visiblePanels + 1)
-    } else {
-      onComplete()
-    }
+    if (visible < panels.length) setVisible(visible + 1)
+    else onComplete()
   }
-
   return (
-    <div
-      onClick={handleClick}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'black',
-        cursor: 'pointer',
-        zIndex: 9999,
-        gap: '20px',
-        padding: '40px'
-      }}
-    >
-      {comicPanels.slice(0, visiblePanels).map((panel, index) => (
-        <img
-          key={index}
-          src={panel}
-          alt={`Intro panel ${index + 1}`}
-          style={{
-            height: '65vh',
-            width: 'auto',
-            objectFit: 'contain',
-            userSelect: 'none',
-            opacity: 0,
-            animation: `fadeIn 0.5s ease-in-out ${index * 0.1}s forwards`
-          }}
-        />
+    <div onClick={handleClick} style={{
+      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'black', cursor: 'pointer', zIndex: 9999,
+      gap: '20px', padding: '40px',
+    }}>
+      {panels.slice(0, visible).map((panel, i) => (
+        <img key={i} src={panel} alt={`Intro panel ${i + 1}`} style={{
+          height: '65vh', width: 'auto', objectFit: 'contain',
+          userSelect: 'none', opacity: 0,
+          animation: `fadeIn 0.5s ease-in-out ${i * 0.1}s forwards`,
+        }} />
       ))}
-      
-      <div style={{
-        position: 'absolute',
-        bottom: '40px',
-        color: 'white',
-        fontSize: '14px',
-        opacity: 0.7,
-        animation: 'pulse 2s ease-in-out infinite'
-      }}>
-        {visiblePanels < comicPanels.length ? '클릭하여 계속' : '클릭하여 시작'}
+      <div style={{ position: 'absolute', bottom: '40px', color: 'white', fontSize: '14px', opacity: 0.7, animation: 'pulse 2s ease-in-out infinite' }}>
+        {visible < panels.length ? '클릭하여 계속' : '클릭하여 시작'}
       </div>
-      
       <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 0.9; }
-        }
-        @keyframes fadeIn {
-          from { 
-            opacity: 0;
-            transform: translateX(20px);
-          }
-          to { 
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
+        @keyframes pulse  { 0%,100%{opacity:.4} 50%{opacity:.9} }
+        @keyframes fadeIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
       `}</style>
     </div>
   )
 }
 
-// 3D 공간의 모델들
-function SceneModels({ selectedObject, setSelectedObject, showStandingIcon, onStandingIconClick }) {
+// ─────────────────────────────────────────────────────────────
+// SceneModels
+// ─────────────────────────────────────────────────────────────
+function SceneModels({ selectedObject, setSelectedObject, showNakaiIcon, onNakaiIconClick, showHyungdooIcon, onHyungdooIconClick }) {
   return (
     <>
       <Select enabled={selectedObject === 'palace'}>
-        <group
-          position={[-3, 0, 0]}
-          onClick={(e) => {
-            e.stopPropagation()
-            setSelectedObject('palace')
-          }}
-        >
+        <group position={[-3, 0, 0]} onClick={(e) => { e.stopPropagation(); setSelectedObject('palace') }}>
           <Palace />
         </group>
       </Select>
-
       <Select enabled={selectedObject === 'structure'}>
-        <group
-          position={[3, 0, 0]}
-          onClick={(e) => {
-            e.stopPropagation()
-            setSelectedObject('structure')
-          }}
-        >
+        <group position={[3, 0, 0]} onClick={(e) => { e.stopPropagation(); setSelectedObject('structure') }}>
           <Structure />
         </group>
       </Select>
+      <Select enabled={selectedObject === 'palace02'}>
+        <group onClick={(e) => { e.stopPropagation(); setSelectedObject('palace02') }}>
+          <Palace02 />
+        </group>
+      </Select>
+      <Select enabled={selectedObject === 'palace03'}>
+        <group position={[0, -3, 0]} onClick={(e) => { e.stopPropagation(); setSelectedObject('palace03') }}>
+          <Palace03 />
+        </group>
+      </Select>
+      <Select enabled={selectedObject === 'palace04'}>
+        <group onClick={(e) => { e.stopPropagation(); setSelectedObject('palace04') }}>
+          <Palace04 />
+        </group>
+      </Select>
+      {/* <Select enabled={selectedObject === 'palace05'}>
+        <group onClick={(e) => { e.stopPropagation(); setSelectedObject('palace05') }}>
+          <Palace05 />
+        </group>
+      </Select> */}
+      <Select enabled={selectedObject === 'palace06'}>
+        <group onClick={(e) => { e.stopPropagation(); setSelectedObject('palace06') }}>
+          <Palace06 />
+        </group>
+      </Select>
 
-      {/* Flower Billboard 10개 추가 - 다양한 위치에 배치 */}
-      <FlowerBillboard position={[0, 20, -30]} />
+      <FlowerBillboard position={[0,    20, -30]} />
       <FlowerBillboard position={[-150, 40, -30]} />
-      <FlowerBillboard position={[-135, 40, 30]} />
-      <FlowerBillboard position={[80, 15, 90]} />
-      <FlowerBillboard position={[80, 15, -90]} />
-      <FlowerBillboard position={[60, 15, -80]} />
-      <FlowerBillboard position={[-5, 15, 80]} />
-      <FlowerBillboard position={[0, 15, -90]} />
-      <FlowerBillboard position={[-120, 40, 50]} />
-      <FlowerBillboard position={[120, 15, 20]} />
+      <FlowerBillboard position={[-135, 40,  30]} />
+      <FlowerBillboard position={[80,   15,  90]} />
+      <FlowerBillboard position={[80,   15, -90]} />
+      <FlowerBillboard position={[60,   15, -80]} />
+      <FlowerBillboard position={[-5,   15,  80]} />
+      <FlowerBillboard position={[0,    15, -90]} />
+      <FlowerBillboard position={[-120, 40,  50]} />
+      <FlowerBillboard position={[120,  15,  20]} />
 
-      {/* Chapter 1 전용: Standing Icon (클릭 가능) */}
-      {showStandingIcon && (
-        <StandingIconBillboard 
+      {showNakaiIcon && (
+        <StandingIconBillboard
           position={[14, 17, 10]}
-          imagePath="/src/components/UI/standing_icon/nakai_standing.png"
-          onClick={onStandingIconClick}
+          imagePath="/UI/standing_icon/nakai_standing.png"
+          onClick={onNakaiIconClick}
+        />
+      )}
+      {showHyungdooIcon && (
+        <StandingIconBillboard
+          position={[14, 17, 10]}
+          imagePath="/UI/standing_icon/hyungdoo_standing.png"
+          onClick={onHyungdooIconClick}
         />
       )}
     </>
   )
 }
 
-// 일본어 선택 시 Retry 대사 UI
-function RetryDialogueOverlay({ onComplete }) {
-  const [dialogueIndex, setDialogueIndex] = useState(0)
-  
-  const dialogues = [
-    { character: '안내자', text: 'You selected Japanese name...' },
-    { character: '안내자', text: 'However, you can make another choice.' },
-    { character: '안내자', text: 'Rethink about the meaning of a name.' },
-  ]
-
-  const currentDialogue = dialogues[dialogueIndex]
-
-  const handleClick = () => {
-    if (dialogueIndex < dialogues.length - 1) {
-      setDialogueIndex(dialogueIndex + 1)
-    } else {
-      onComplete()
-    }
-  }
-
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      pointerEvents: 'none',
-      zIndex: 100
-    }}>
-      {/* 캐릭터 플레이스홀더 */}
-      <div style={{
-        position: 'absolute',
-        bottom: '250px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        pointerEvents: 'none'
-      }}>
-        <div style={{
-          width: '200px',
-          height: '350px',
-          background: 'linear-gradient(135deg, #f5576c, rgba(255,255,255,0.1))',
-          borderRadius: '100px 100px 20px 20px',
-          border: '3px solid #f5576c',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '80px',
-          filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.5))',
-          position: 'relative',
-          animation: 'fadeIn 0.5s ease-in-out'
-        }}>
-          👤
-          <div style={{
-            position: 'absolute',
-            top: '10px',
-            right: '10px',
-            fontSize: '18px',
-            background: 'rgba(0,0,0,0.7)',
-            padding: '5px 10px',
-            borderRadius: '20px',
-            color: 'white'
-          }}>
-            RETRY
-          </div>
-        </div>
-      </div>
-
-      {/* 대사 UI */}
-      <div
-        onClick={handleClick}
-        style={{
-          position: 'absolute',
-          bottom: '0',
-          left: '0',
-          right: '0',
-          height: '220px',
-          background: 'linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.85))',
-          color: 'white',
-          padding: '30px 50px',
-          cursor: 'pointer',
-          fontFamily: 'system-ui, sans-serif',
-          pointerEvents: 'auto',
-          borderTop: '3px solid #f5576c',
-          animation: 'slideUp 0.5s ease-out'
-        }}
-      >
-        <div style={{
-          fontSize: '20px',
-          fontWeight: 'bold',
-          color: '#f5576c',
-          marginBottom: '15px',
-          textShadow: '0 0 10px #f5576c'
-        }}>
-          {currentDialogue.character}
-        </div>
-        <div style={{
-          fontSize: '18px',
-          lineHeight: '1.8',
-          maxWidth: '900px'
-        }}>
-          {currentDialogue.text}
-        </div>
-        <div style={{
-          position: 'absolute',
-          bottom: '25px',
-          right: '50px',
-          fontSize: '14px',
-          opacity: 0.8,
-          animation: 'pulse 2s ease-in-out infinite'
-        }}>
-          {dialogueIndex < dialogues.length - 1 ? '클릭하여 계속 ▼' : '클릭하여 다시 선택 ▼'}
-        </div>
-        <div style={{
-          position: 'absolute',
-          bottom: '25px',
-          left: '50px',
-          fontSize: '12px',
-          opacity: 0.6
-        }}>
-          {dialogueIndex + 1} / {dialogues.length}
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes slideUp {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-      `}</style>
-    </div>
-  )
-}
-
-function ChapterDialogueOverlay({ chapterNumber, onComplete }) {
-  const [dialogueIndex, setDialogueIndex] = useState(0)
-  
-  const dialogues = {
-    1: [
-      { character: 'Chapter 1 - The Empire\'s eye', text: '제국의 눈에 대한 첫 번째 대사입니다.' },
-      { character: 'Chapter 1 - The Empire\'s eye', text: '제국의 눈에 대한 두 번째 대사입니다.' },
-      { character: 'Chapter 1 - The Empire\'s eye', text: '제국의 눈에 대한 세 번째 대사입니다.' },
-    ],
-    2: [
-      { character: 'Chapter 2 - The Voice in Local', text: '지역의 목소리에 대한 첫 번째 대사입니다.' },
-      { character: 'Chapter 2 - The Voice in Local', text: '지역의 목소리에 대한 두 번째 대사입니다.' },
-      { character: 'Chapter 2 - The Voice in Local', text: '지역의 목소리에 대한 세 번째 대사입니다.' },
-    ],
-    3: [
-      { character: 'Chapter 3 - The meaning of Name', text: '이름의 의미에 대한 첫 번째 대사입니다.' },
-      { character: 'Chapter 3 - The meaning of Name', text: '이름의 의미에 대한 두 번째 대사입니다.' },
-      { character: 'Chapter 3 - The meaning of Name', text: '이름의 의미에 대한 세 번째 대사입니다.' },
-    ]
-  }
-
-  const currentDialogues = dialogues[chapterNumber]
-  const currentDialogue = currentDialogues[dialogueIndex]
-
-  const handleClick = () => {
-    if (dialogueIndex < currentDialogues.length - 1) {
-      setDialogueIndex(dialogueIndex + 1)
-    } else {
-      onComplete()
-    }
-  }
-
-  const chapterColors = {
-    1: '#ff69b4',
-    2: '#00ffff', 
-    3: '#90ee90'
-  }
-
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      pointerEvents: 'none',
-      zIndex: 100
-    }}>
-      {/* 캐릭터 플레이스홀더 */}
-      <div style={{
-        position: 'absolute',
-        bottom: '250px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        pointerEvents: 'none'
-      }}>
-        <div style={{
-          width: '200px',
-          height: '350px',
-          background: `linear-gradient(135deg, ${chapterColors[chapterNumber]}, rgba(255,255,255,0.1))`,
-          borderRadius: '100px 100px 20px 20px',
-          border: `3px solid ${chapterColors[chapterNumber]}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '80px',
-          filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.5))',
-          position: 'relative'
-        }}>
-          🎭
-          <div style={{
-            position: 'absolute',
-            top: '10px',
-            right: '10px',
-            fontSize: '18px',
-            background: 'rgba(0,0,0,0.7)',
-            padding: '5px 10px',
-            borderRadius: '20px',
-            color: 'white'
-          }}>
-            CH{chapterNumber}
-          </div>
-        </div>
-      </div>
-
-      {/* 대사 UI */}
-      <div
-        onClick={handleClick}
-        style={{
-          position: 'absolute',
-          bottom: '0',
-          left: '0',
-          right: '0',
-          height: '220px',
-          background: 'linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.85))',
-          color: 'white',
-          padding: '30px 50px',
-          cursor: 'pointer',
-          fontFamily: 'system-ui, sans-serif',
-          pointerEvents: 'auto',
-          borderTop: `3px solid ${chapterColors[chapterNumber]}`
-        }}
-      >
-        <div style={{
-          fontSize: '20px',
-          fontWeight: 'bold',
-          color: chapterColors[chapterNumber],
-          marginBottom: '15px',
-          textShadow: `0 0 10px ${chapterColors[chapterNumber]}`
-        }}>
-          {currentDialogue.character}
-        </div>
-        <div style={{
-          fontSize: '18px',
-          lineHeight: '1.8',
-          maxWidth: '900px'
-        }}>
-          {currentDialogue.text}
-        </div>
-        <div style={{
-          position: 'absolute',
-          bottom: '25px',
-          right: '50px',
-          fontSize: '14px',
-          opacity: 0.8,
-          animation: 'pulse 2s ease-in-out infinite'
-        }}>
-          {dialogueIndex < currentDialogues.length - 1 ? '클릭하여 계속 ▼' : '클릭하여 다음 장면 ▼'}
-        </div>
-        <div style={{
-          position: 'absolute',
-          bottom: '25px',
-          left: '50px',
-          fontSize: '12px',
-          opacity: 0.6
-        }}>
-          {dialogueIndex + 1} / {currentDialogues.length}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// 이미지 슬라이드쇼 컴포넌트 (비디오 대체)
+// ─────────────────────────────────────────────────────────────
+// ImageSlideshow
+// ─────────────────────────────────────────────────────────────
 function ImageSlideshow({ images, onComplete }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [fadeOut, setFadeOut] = useState(false)
-
   const handleClick = () => {
     if (currentIndex < images.length - 1) {
       setFadeOut(true)
-      setTimeout(() => {
-        setCurrentIndex(currentIndex + 1)
-        setFadeOut(false)
-      }, 300)
+      setTimeout(() => { setCurrentIndex(currentIndex + 1); setFadeOut(false) }, 300)
     } else {
       setFadeOut(true)
-      setTimeout(() => {
-        onComplete()
-      }, 500)
+      setTimeout(() => onComplete(), 500)
     }
   }
-
   return (
-    <div
-      onClick={handleClick}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'black',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        zIndex: 200
-      }}
-    >
-      <img
-        src={images[currentIndex]}
-        alt={`Slide ${currentIndex + 1}`}
-        style={{
-          maxWidth: '90%',
-          maxHeight: '90%',
-          objectFit: 'contain',
-          opacity: fadeOut ? 0 : 1,
-          transition: 'opacity 0.3s ease-in-out',
-          userSelect: 'none'
-        }}
-      />
-      
-      {/* 진행 표시 */}
-      <div style={{
-        position: 'absolute',
-        top: '40px',
-        right: '40px',
-        color: 'white',
-        fontSize: '16px',
-        opacity: 0.7,
-        background: 'rgba(0,0,0,0.5)',
-        padding: '10px 20px',
-        borderRadius: '20px'
-      }}>
+    <div onClick={handleClick} style={{
+      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+      background: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      cursor: 'pointer', zIndex: 200,
+    }}>
+      <img src={images[currentIndex]} alt={`Slide ${currentIndex + 1}`} style={{
+        maxWidth: '90%', maxHeight: '90%', objectFit: 'contain',
+        opacity: fadeOut ? 0 : 1, transition: 'opacity 0.3s ease-in-out', userSelect: 'none',
+      }} />
+      <div style={{ position: 'absolute', top: '40px', right: '40px', color: 'white', fontSize: '16px', opacity: 0.7, background: 'rgba(0,0,0,0.5)', padding: '10px 20px', borderRadius: '20px' }}>
         {currentIndex + 1} / {images.length}
       </div>
-
-      {/* 클릭 안내 */}
-      <div style={{
-        position: 'absolute',
-        bottom: '40px',
-        color: 'white',
-        fontSize: '14px',
-        opacity: 0.7,
-        animation: 'pulse 2s ease-in-out infinite'
-      }}>
+      <div style={{ position: 'absolute', bottom: '40px', color: 'white', fontSize: '14px', opacity: 0.7, animation: 'pulse 2s ease-in-out infinite' }}>
         {currentIndex < images.length - 1 ? 'Click to continue ▼' : 'Click for next scene ▼'}
       </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 0.9; }
-        }
-      `}</style>
+      <style>{`@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:.9} }`}</style>
     </div>
   )
 }
 
-// 이름 선택 (Canvas 밖에서 오버레이) - SVG 이미지 버전
-function NameChoiceOverlay({ onChoice }) {
-  const [hoveredChoice, setHoveredChoice] = useState(null)
+// ─────────────────────────────────────────────────────────────
+// ChoiceImage — 이미지 로드 실패 시 텍스트 fallback
+// ─────────────────────────────────────────────────────────────
+function ChoiceImage({ src, label }) {
+  const [status, setStatus] = React.useState('loading') // 'loading' | 'ok' | 'fail'
+  if (!src || status === 'fail') return (
+    <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xl)', color: 'var(--color-text)', textAlign: 'center', lineHeight: 1.4 }}>
+      {label}
+    </div>
+  )
+  return (
+    <img
+      src={src}
+      alt={label}
+      onLoad={() => setStatus('ok')}
+      onError={() => setStatus('fail')}
+      style={{
+        maxWidth: '90%', maxHeight: '180px',
+        objectFit: 'contain',
+        opacity: status === 'ok' ? 1 : 0,
+        transition: 'opacity 0.2s ease',
+      }}
+    />
+  )
+}
 
+// ─────────────────────────────────────────────────────────────
+// NameChoiceOverlay — 4개 선택지
+// ─────────────────────────────────────────────────────────────
+const NAME_CHOICES = [
+  { id: 'korean',     label: 'Misun Tree',      sublabel: '미선나무',                  img: '${BASE}typo/mison_namu.svg'  },
+  { id: 'japanese',   label: 'Uchiwa-noki',      sublabel: 'うちわのき',               img: '${BASE}typo/Uchiwa-noki.svg' },
+  { id: 'scientific', label: 'Scientific Name',  sublabel: 'Abeliophyllum distichum', img: null },
+  { id: 'english',    label: 'White Forsythia',  sublabel: 'English Name',            img: null },
+]
+
+function NameChoiceOverlay({ onChoice }) {
+  const [hovered, setHovered] = useState(null)
   return (
     <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      background: 'rgba(0,0,0,0.85)',
-      backdropFilter: 'blur(10px)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '60px',
-      zIndex: 200
+      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+      background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      gap: '30px', zIndex: 200,
     }}>
-      <h1 style={{
-        color: 'white',
-        fontSize: '48px',
-        marginBottom: '40px',
-        fontWeight: 'bold',
-        textShadow: '0 0 20px rgba(255,255,255,0.3)'
-      }}>
+      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-2xl)', color: 'var(--bg-color)', letterSpacing: '0.1em' }}>
         Choose your name
       </h1>
-
-      <div style={{
-        display: 'flex',
-        flexDirection: 'row',
-        gap: '40px',
-        alignItems: 'center'
-      }}>
-        {/* 한글 선택 - mison_namu.svg 사용 */}
-        <div
-          onClick={() => onChoice('korean')}
-          onMouseEnter={() => setHoveredChoice('korean')}
-          onMouseLeave={() => setHoveredChoice(null)}
-          style={{
-            width: '700px',
-            height: '350px',
-            background: hoveredChoice === 'korean' 
-              ? 'rgba(255, 255, 255, 0.15)' 
-              : 'rgba(255, 255, 255, 0.08)',
-            border: hoveredChoice === 'korean' 
-              ? '2px solid rgba(255, 255, 255, 0.4)' 
-              : '2px solid rgba(255, 255, 255, 0.2)',
-            borderRadius: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.3s ease',
-            transform: hoveredChoice === 'korean' ? 'scale(1.05)' : 'scale(1)',
-            boxShadow: hoveredChoice === 'korean' 
-              ? '0 8px 32px rgba(255, 255, 255, 0.2)' 
-              : '0 4px 16px rgba(0, 0, 0, 0.3)',
-            padding: '40px'
-          }}
-        >
-          <img 
-            src="/typo/mison_namu.svg" 
-            alt="한글 이름"
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+        {NAME_CHOICES.map((choice) => (
+          <div
+            key={choice.id}
+            onClick={() => onChoice(choice.id)}
+            onMouseEnter={() => setHovered(choice.id)}
+            onMouseLeave={() => setHovered(null)}
             style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              filter: hoveredChoice === 'korean' ? 'brightness(1.1)' : 'brightness(1)',
-              transition: 'filter 0.3s ease'
+              width: '480px', height: '270px',
+              backgroundImage: 'var(--paper-tex-bg-2)', backgroundSize: 'cover',
+              backgroundColor: 'var(--bg-color)',
+              border: hovered === choice.id ? 'var(--border-thickness-medium) solid var(--secondary-color)' : 'var(--border-thickness-thin) solid var(--color-text-muted)',
+              borderRadius: 'var(--border-radius-md)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', padding: '28px', position: 'relative',
+              transition: 'all 0.3s ease',
+              transform: hovered === choice.id ? 'scale(1.03)' : 'scale(1)',
+              boxShadow: hovered === choice.id ? '0 8px 24px rgba(88,60,43,0.15)' : 'none',
             }}
-          />
-        </div>
-
-        {/* 일본어 선택 - Uchiwa-noki.svg 사용 */}
-        <div
-          onClick={() => onChoice('japanese')}
-          onMouseEnter={() => setHoveredChoice('japanese')}
-          onMouseLeave={() => setHoveredChoice(null)}
-          style={{
-            width: '700px',
-            height: '350px',
-            background: hoveredChoice === 'japanese' 
-              ? 'rgba(255, 255, 255, 0.15)' 
-              : 'rgba(255, 255, 255, 0.08)',
-            border: hoveredChoice === 'japanese' 
-              ? '2px solid rgba(255, 255, 255, 0.4)' 
-              : '2px solid rgba(255, 255, 255, 0.2)',
-            borderRadius: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.3s ease',
-            transform: hoveredChoice === 'japanese' ? 'scale(1.05)' : 'scale(1)',
-            boxShadow: hoveredChoice === 'japanese' 
-              ? '0 8px 32px rgba(255, 255, 255, 0.2)' 
-              : '0 4px 16px rgba(0, 0, 0, 0.3)',
-            padding: '40px'
-          }}
-        >
-          <img 
-            src="/typo/Uchiwa-noki.svg" 
-            alt="일본어 이름"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              filter: hoveredChoice === 'japanese' ? 'brightness(1.1)' : 'brightness(1)',
-              transition: 'filter 0.3s ease'
-            }}
-          />
-        </div>
+          >
+            {hovered === choice.id && (
+              <div style={{
+                position: 'absolute', top: '-2px', left: '-2px',
+                width: 'var(--corner-size)', height: 'var(--corner-size)',
+                borderTop: 'var(--corner-weight) solid var(--corner-color)',
+                borderLeft: 'var(--corner-weight) solid var(--corner-color)',
+              }} />
+            )}
+            <ChoiceImage src={choice.img} label={choice.label} />
+            <div style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', marginTop: '10px', textAlign: 'center' }}>
+              {choice.sublabel}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-// 엔딩 컨텐츠
+// ─────────────────────────────────────────────────────────────
+// EndingContent (True Ending — Korean only)
+// ─────────────────────────────────────────────────────────────
 function EndingContent({ onComplete }) {
-  const endingType = 'images'
-  
-  const comicPanels = [
-    '/comics/ending/panel1.png',
-    '/comics/ending/panel2.png',
-    '/comics/ending/panel3.png',
-  ]
-  
-  const endingVideo = '/videos/ending.mp4'
-
-  const [currentPanel, setCurrentPanel] = useState(0)
+  const panels = ['${BASE}comics/ending/panel1.png', '${BASE}comics/ending/panel2.png', '${BASE}comics/ending/panel3.png']
+  const [current, setCurrent] = useState(0)
   const [fadeOut, setFadeOut] = useState(false)
-
   const handleClick = () => {
-    if (currentPanel < comicPanels.length - 1) {
+    if (current < panels.length - 1) {
       setFadeOut(true)
-      setTimeout(() => {
-        setCurrentPanel(currentPanel + 1)
-        setFadeOut(false)
-      }, 300)
+      setTimeout(() => { setCurrent(current + 1); setFadeOut(false) }, 300)
     } else {
       setFadeOut(true)
-      setTimeout(() => {
-        onComplete()
-      }, 500)
+      setTimeout(() => onComplete(), 500)
     }
   }
-
-  const handleVideoEnd = () => {
-    onComplete()
-  }
-
-  if (endingType === 'video') {
-    return (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'black',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999
-      }}>
-        <video
-          src={endingVideo}
-          autoPlay
-          onEnded={handleVideoEnd}
-          style={{
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain'
-          }}
-          controls
-        />
-      </div>
-    )
-  }
-
   return (
-    <div
-      onClick={handleClick}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'black',
-        cursor: 'pointer',
-        zIndex: 9999
-      }}
-    >
-      <img
-        src={comicPanels[currentPanel]}
-        alt={`Ending panel ${currentPanel + 1}`}
-        style={{
-          maxWidth: '90%',
-          maxHeight: '90%',
-          objectFit: 'contain',
-          opacity: fadeOut ? 0 : 1,
-          transition: 'opacity 0.3s ease-in-out',
-          userSelect: 'none'
-        }}
-      />
-      <div style={{
-        position: 'absolute',
-        bottom: '40px',
-        color: 'white',
-        fontSize: '14px',
-        opacity: 0.7,
-        animation: 'pulse 2s ease-in-out infinite'
-      }}>
-        클릭하여 계속
-      </div>
+    <div onClick={handleClick} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'black', cursor: 'pointer', zIndex: 9999 }}>
+      <img src={panels[current]} alt={`Ending panel ${current + 1}`} style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain', opacity: fadeOut ? 0 : 1, transition: 'opacity 0.3s ease-in-out', userSelect: 'none' }} />
+      <div style={{ position: 'absolute', bottom: '40px', color: 'white', fontSize: '14px', opacity: 0.7 }}>클릭하여 계속</div>
     </div>
   )
 }
 
-// 크레딧
+// ─────────────────────────────────────────────────────────────
+// Credits
+// ─────────────────────────────────────────────────────────────
 function Credits({ onComplete }) {
   React.useEffect(() => {
-    const timer = setTimeout(() => {
-      onComplete()
-    }, 8000)
+    const timer = setTimeout(() => onComplete(), 8000)
     return () => clearTimeout(timer)
   }, [onComplete])
-
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      background: 'black',
-      color: 'white',
-      overflowY: 'auto',
-      padding: '60px',
-      fontFamily: 'system-ui, sans-serif',
-      zIndex: 9999
-    }}>
-      <div style={{
-        maxWidth: '900px',
-        margin: '0 auto',
-        textAlign: 'center'
-      }}>
-        <h1 style={{ fontSize: '56px', marginBottom: '80px', color: '#00ffff' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'var(--primary-color)', color: 'var(--bg-color)', overflowY: 'auto', padding: '60px', fontFamily: 'var(--font-body)', zIndex: 9999 }}>
+      <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-2xl)', color: 'var(--color-accent-gold)', marginBottom: 'var(--spacing-xl)' }}>
           The Garden of Liberation
         </h1>
-
-        <div style={{ marginBottom: '100px' }}>
-          <h2 style={{ fontSize: '28px', marginBottom: '30px' }}>Timeline & Infographic</h2>
-          <img 
-            src="/infographic.png" 
-            alt="Infographic"
-            style={{ maxWidth: '100%', marginBottom: '40px', borderRadius: '10px' }}
-          />
+        <div style={{ marginBottom: 'var(--spacing-2xl)' }}>
+          <h2 style={{ marginBottom: 'var(--spacing-lg)' }}>Timeline & Infographic</h2>
+          <img src="${BASE}infographic.png" alt="Infographic" style={{ maxWidth: '100%', marginBottom: 'var(--spacing-lg)', borderRadius: 'var(--border-radius-md)' }} />
         </div>
-
-        <div style={{ marginBottom: '100px', textAlign: 'left' }}>
-          <h2 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>
-            참고 문헌 & 사료
-          </h2>
-          <ul style={{ lineHeight: '2.2', fontSize: '16px', opacity: 0.9 }}>
+        <div style={{ marginBottom: 'var(--spacing-2xl)', textAlign: 'left' }}>
+          <h2 style={{ marginBottom: 'var(--spacing-lg)', textAlign: 'center' }}>참고 문헌 & 사료</h2>
+          <ul style={{ lineHeight: '2.2', fontSize: 'var(--font-size-md)', opacity: 0.9 }}>
             <li>참고문헌 1: 제목, 저자, 출판사</li>
             <li>참고문헌 2: 제목, 저자, 출판사</li>
             <li>참고문헌 3: 제목, 저자, 출판사</li>
@@ -1108,210 +651,211 @@ function Credits({ onComplete }) {
             <li>사료 2: 출처 및 설명</li>
           </ul>
         </div>
-
-        <div style={{ marginTop: '120px', fontSize: '14px', opacity: 0.6 }}>
-          <p style={{ marginBottom: '20px' }}>잠시 후 처음으로 돌아갑니다...</p>
-          <div style={{
-            width: '0',
-            height: '3px',
-            background: 'linear-gradient(90deg, #00ffff, #ff00ff)',
-            margin: '0 auto',
-            animation: 'loading 8s linear forwards'
-          }} />
+        <div style={{ marginTop: 'var(--spacing-2xl)', fontSize: 'var(--font-size-sm)', opacity: 0.6 }}>
+          <p style={{ marginBottom: 'var(--spacing-md)' }}>잠시 후 처음으로 돌아갑니다...</p>
+          <div style={{ width: 0, height: '3px', background: 'linear-gradient(90deg, var(--color-accent), var(--color-accent-secondary))', margin: '0 auto', animation: 'creditsLoad 8s linear forwards' }} />
         </div>
       </div>
-
-      <style>{`
-        @keyframes loading {
-          0% { width: 0; }
-          100% { width: 400px; }
-        }
-      `}</style>
+      <style>{`@keyframes creditsLoad { 0%{width:0} 100%{width:400px} }`}</style>
     </div>
   )
 }
 
-// 메인 App
+// ─────────────────────────────────────────────────────────────
+// ErrorBoundary — Canvas 에러 시 흰 화면 방지
+// ─────────────────────────────────────────────────────────────
+class CanvasErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false } }
+  static getDerivedStateFromError() { return { hasError: true } }
+  componentDidCatch(err) { console.error('Canvas error:', err) }
+  render() {
+    if (this.state.hasError) return (
+      <div style={{
+        position: 'fixed', inset: 0, display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)',
+        fontSize: '14px', zIndex: 1,
+      }}>
+        3D 씬 로딩 중...
+      </div>
+    )
+    return this.props.children
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Main App
+// ─────────────────────────────────────────────────────────────
 function App() {
+  usePreloadImages() // 모든 배경 + 캐릭터 이미지 미리 로드
+
   const [currentStage, setCurrentStage] = useState(STAGES.INTRO_COMIC)
   const [selectedObject, setSelectedObject] = useState(null)
-  const [showChapter1Interaction, setShowChapter1Interaction] = useState(false)
+  const [showChapter1Interaction,  setShowChapter1Interaction]  = useState(false)
+  const [showHyungdooIcon,         setShowHyungdooIcon]         = useState(false)
+  const [showChapter2Interaction,  setShowChapter2Interaction]  = useState(false)
 
-  // 챕터별 이미지 배열 정의
   const chapterImages = {
-    1: [
-      '/video/chp_01_01.jpg',
-      '/video/chp_01_02.jpg',
-      '/video/chp_01_03.jpg'
-    ],
-    2: [
-      '/video/chp_02_01.jpg',
-      '/video/chp_02_02.jpg',
-      '/video/chp_02_03.jpg'
-    ],
-    3: [
-      '/video/chp_03_01.jpg',
-      '/video/chp_03_02.jpg',
-      '/video/chp_03_03.jpg'
-    ]
+    1: ['${BASE}video/chp_01_01.jpg', '${BASE}video/chp_01_02.jpg', '${BASE}video/chp_01_03.jpg'],
+    2: ['${BASE}video/chp_02_01.jpg', '${BASE}video/chp_02_02.jpg', '${BASE}video/chp_02_03.jpg'],
+    3: ['${BASE}video/chp_03_01.jpg', '${BASE}video/chp_03_02.jpg', '${BASE}video/chp_03_03.jpg'],
   }
 
   const handleStageComplete = (nextStage) => {
     setCurrentStage(nextStage)
     setShowChapter1Interaction(false)
-  }
-
-  const handleStandingIconClick = () => {
-    console.log('Standing icon clicked!')
-    setShowChapter1Interaction(true)
+    setShowHyungdooIcon(false)
+    setShowChapter2Interaction(false)
   }
 
   const isIn3DSpace = ![STAGES.INTRO_COMIC, STAGES.ENDING_COMIC, STAGES.CREDITS].includes(currentStage)
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#0a0a0a' }}>
-      {currentStage === STAGES.INTRO_COMIC && (
-        <IntroComic onComplete={() => handleStageComplete(STAGES.CHAPTER_1_DIALOGUE)} />
-      )}
+    <div style={{ width: '100vw', height: '100vh', background: '#1a1410' }}>
 
-      {currentStage === STAGES.ENDING_COMIC && (
-        <EndingContent onComplete={() => handleStageComplete(STAGES.CREDITS)} />
-      )}
-
-      {currentStage === STAGES.CREDITS && (
-        <Credits onComplete={() => handleStageComplete(STAGES.INTRO_COMIC)} />
-      )}
+      {currentStage === STAGES.INTRO_COMIC  && <IntroComic   onComplete={() => handleStageComplete(STAGES.GARDEN_ARRIVAL)} />}
+      {currentStage === STAGES.ENDING_COMIC && <EndingContent onComplete={() => handleStageComplete(STAGES.CREDITS)} />}
+      {currentStage === STAGES.CREDITS      && <Credits       onComplete={() => handleStageComplete(STAGES.INTRO_COMIC)} />}
 
       {isIn3DSpace && (
         <>
-          {/* Chapter 1 전용 인터랙션 */}
+          {/* ── 배경 레이어들 — Canvas 뒤에 위치, CSS 크로스페이드 ── */}
+          {/* Chapter 1 / Garden Arrival / Endings 배경 */}
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 0,
+            backgroundImage: 'url(${BASE}images/Nakai_bg.png)',
+            backgroundSize: 'cover', backgroundPosition: 'center',
+            opacity: (
+              currentStage === STAGES.GARDEN_ARRIVAL ||
+              currentStage.includes('chapter_1') ||
+              currentStage.includes('ending_')
+            ) ? 1 : 0,
+            transition: 'opacity 0.5s ease',
+            pointerEvents: 'none',
+          }} />
+          {/* Chapter 2 배경 */}
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 0,
+            backgroundImage: 'url(${BASE}images/Jang_bg.png)',
+            backgroundSize: 'cover', backgroundPosition: 'center',
+            opacity: currentStage.includes('chapter_2') ? 1 : 0,
+            transition: 'opacity 0.5s ease',
+            pointerEvents: 'none',
+          }} />
+          {/* Chapter 3 / 기본 배경 */}
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 0,
+            backgroundImage: 'url(${BASE}images/Paper_tex_2.png)',
+            backgroundSize: 'cover', backgroundPosition: 'center',
+            opacity: (
+              currentStage.includes('chapter_3') ||
+              currentStage === STAGES.NAME_CHOICE
+            ) ? 1 : 0,
+            transition: 'opacity 0.5s ease',
+            pointerEvents: 'none',
+          }} />
+
+          {/* Garden Arrival */}
+          {currentStage === STAGES.GARDEN_ARRIVAL && (
+            <DialogueOverlay dialogues={DIALOGUES.gardenArrival} onComplete={() => handleStageComplete(STAGES.CHAPTER_1_DIALOGUE)} />
+          )}
+
+          {/* Chapter 1 */}
           {currentStage === STAGES.CHAPTER_1_DIALOGUE && showChapter1Interaction && (
-            <Chapter1InteractionOverlay 
-              onComplete={() => handleStageComplete(STAGES.CHAPTER_1_VIDEO)}
-            />
+            <DialogueOverlay dialogues={DIALOGUES.chapter1} onComplete={() => handleStageComplete(STAGES.CHAPTER_1_VIDEO)} />
           )}
-          
-          {/* 챕터 대사 UI - Chapter 2와 3만 */}
-          {currentStage === STAGES.CHAPTER_2_DIALOGUE && (
-            <ChapterDialogueOverlay 
-              chapterNumber={2}
-              onComplete={() => handleStageComplete(STAGES.CHAPTER_2_VIDEO)}
-            />
-          )}
-          
-          {currentStage === STAGES.CHAPTER_3_DIALOGUE && (
-            <ChapterDialogueOverlay 
-              chapterNumber={3}
-              onComplete={() => handleStageComplete(STAGES.CHAPTER_3_VIDEO)}
-            />
-          )}
-
-          {/* 이미지 슬라이드쇼 - 각 챕터별로 */}
           {currentStage === STAGES.CHAPTER_1_VIDEO && (
-            <ImageSlideshow 
-              images={chapterImages[1]}
-              onComplete={() => handleStageComplete(STAGES.CHAPTER_2_DIALOGUE)}
-            />
+            <ImageSlideshow images={chapterImages[1]} onComplete={() => handleStageComplete(STAGES.CHAPTER_2_DIALOGUE)} />
           )}
 
+          {/* Chapter 2 */}
+          {currentStage === STAGES.CHAPTER_2_DIALOGUE && !showHyungdooIcon && !showChapter2Interaction && (
+            <DialogueOverlay dialogues={DIALOGUES.chapter2Reflection} onComplete={() => setShowHyungdooIcon(true)} />
+          )}
+          {currentStage === STAGES.CHAPTER_2_DIALOGUE && showChapter2Interaction && (
+            <DialogueOverlay dialogues={DIALOGUES.chapter2Main} onComplete={() => handleStageComplete(STAGES.CHAPTER_2_VIDEO)} />
+          )}
           {currentStage === STAGES.CHAPTER_2_VIDEO && (
-            <ImageSlideshow 
-              images={chapterImages[2]}
-              onComplete={() => handleStageComplete(STAGES.CHAPTER_3_DIALOGUE)}
-            />
+            <ImageSlideshow images={chapterImages[2]} onComplete={() => handleStageComplete(STAGES.CHAPTER_3_DIALOGUE)} />
           )}
 
+          {/* Chapter 3 */}
+          {currentStage === STAGES.CHAPTER_3_DIALOGUE && (
+            <DialogueOverlay dialogues={DIALOGUES.chapter3} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />
+          )}
           {currentStage === STAGES.CHAPTER_3_VIDEO && (
-            <ImageSlideshow 
-              images={chapterImages[3]}
-              onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)}
-            />
+            <ImageSlideshow images={chapterImages[3]} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />
           )}
 
-          {/* 이름 선택 - Canvas 밖에서 렌더링 */}
+          {/* Name Choice */}
           {currentStage === STAGES.NAME_CHOICE && (
-            <NameChoiceOverlay 
-              onChoice={(choice) => {
-                if (choice === 'japanese') {
-                  handleStageComplete(STAGES.RETRY_DIALOGUE)
-                } else {
-                  handleStageComplete(STAGES.ENDING_COMIC)
-                }
+            <NameChoiceOverlay onChoice={(choice) => {
+              if (choice === 'korean')          handleStageComplete(STAGES.ENDING_COMIC)
+              else if (choice === 'japanese')   handleStageComplete(STAGES.ENDING_2_DIALOGUE)
+              else if (choice === 'scientific') handleStageComplete(STAGES.ENDING_3_DIALOGUE)
+              else if (choice === 'english')    handleStageComplete(STAGES.ENDING_4_DIALOGUE)
+            }} />
+          )}
+
+          {/* Branching Endings */}
+          {currentStage === STAGES.ENDING_2_DIALOGUE && (
+            <DialogueOverlay dialogues={DIALOGUES.ending2} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />
+          )}
+          {currentStage === STAGES.ENDING_3_DIALOGUE && (
+            <DialogueOverlay dialogues={DIALOGUES.ending3} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />
+          )}
+          {currentStage === STAGES.ENDING_4_DIALOGUE && (
+            <DialogueOverlay dialogues={DIALOGUES.ending4} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />
+          )}
+
+          {/* ── Canvas — 배경 투명, zIndex 1 ── */}
+          <CanvasErrorBoundary>
+            <Canvas
+              style={{
+                position: 'fixed', inset: 0,
+                zIndex: 1,
+                background: 'transparent',
               }}
-            />
-          )}
-
-          {/* Retry 대사 - 일본어 선택 시 */}
-          {currentStage === STAGES.RETRY_DIALOGUE && (
-            <RetryDialogueOverlay 
-              onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)}
-            />
-          )}
-
-          <Canvas
-            style={{
-              backgroundImage: 'url(/images/bg_02.png)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat'
-            }}
-            camera={{ position: [0, 20, 50], fov: 65 }}
-            shadows
-            gl={{ 
-              antialias: true, 
-              powerPreference: "high-performance"
-            }}
-            onClick={() => setSelectedObject(null)}
-          >
-            <Suspense fallback={null}>
-              <Selection>
-                <ambientLight intensity={0.3} />
-                <pointLight position={[10, 10, 10]} intensity={1.5} castShadow />
-                <pointLight position={[-10, -10, -10]} intensity={0.8} color="#0066ff" />
-                <directionalLight position={[5, 10, 5]} intensity={1} castShadow />
-
-                <Environment preset="night" />
-                
-                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]} receiveShadow>
-                  <planeGeometry args={[30, 30]} />
-                  <meshStandardMaterial color="#1a1a1a" roughness={0.8} metalness={0.2} />
-                </mesh>
-
-                <SceneModels 
-                  selectedObject={selectedObject} 
-                  setSelectedObject={setSelectedObject}
-                  showStandingIcon={currentStage === STAGES.CHAPTER_1_DIALOGUE && !showChapter1Interaction}
-                  onStandingIconClick={handleStandingIconClick}
-                />
-
-                <EffectComposer>
-                  <Outline
-                    blur={false}
-                    visibleEdgeColor={0x00ffff}
-                    hiddenEdgeColor={0xff00ff}
-                    edgeStrength={5}
-                    width={1024}
-                    height={1024}
+              camera={{ position: [0, 20, 50], fov: 65 }}
+              shadows
+              gl={{ antialias: true, powerPreference: 'high-performance', alpha: true }}
+              onClick={() => setSelectedObject(null)}
+            >
+              <Suspense fallback={null}>
+                <Selection>
+                  <ambientLight intensity={0.3} />
+                  <pointLight position={[10, 10, 10]} intensity={1.5} castShadow />
+                  <pointLight position={[-10, -10, -10]} intensity={0.8} color="#0066ff" />
+                  <directionalLight position={[5, 10, 5]} intensity={1} castShadow />
+                  <Environment preset="night" />
+                  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]} receiveShadow>
+                    <planeGeometry args={[30, 30]} />
+                    <meshStandardMaterial color="#1a1a1a" roughness={0.8} metalness={0.2} />
+                  </mesh>
+                  <SceneModels
+                    selectedObject={selectedObject}
+                    setSelectedObject={setSelectedObject}
+                    showNakaiIcon={currentStage === STAGES.CHAPTER_1_DIALOGUE && !showChapter1Interaction}
+                    onNakaiIconClick={() => setShowChapter1Interaction(true)}
+                    showHyungdooIcon={currentStage === STAGES.CHAPTER_2_DIALOGUE && showHyungdooIcon && !showChapter2Interaction}
+                    onHyungdooIconClick={() => setShowChapter2Interaction(true)}
                   />
-                </EffectComposer>
-              </Selection>
-
-              {!currentStage.includes('VIDEO') && currentStage !== STAGES.NAME_CHOICE && (
-                <OrbitControls 
-                  enablePan={true}
-                  enableZoom={true}
-                  enableRotate={true}
-                  dampingFactor={0.02}
-                  enableDamping                 
-                  maxDistance={220}
-                  minDistance={5}
-                  maxPolarAngle={Math.PI}
-                  minPolarAngle={0}
-                  target={[0, 10, 0]}
-                />
-              )}
-            </Suspense>
-          </Canvas>
+                  <EffectComposer>
+                    <Outline blur={false} visibleEdgeColor={0xffd700} hiddenEdgeColor={0xffd700} edgeStrength={10} edgeThickness={1} width={1024} height={1024} />
+                  </EffectComposer>
+                </Selection>
+                {!currentStage.includes('VIDEO') && currentStage !== STAGES.NAME_CHOICE && (
+                  <OrbitControls
+                    enablePan enableZoom enableRotate
+                    dampingFactor={0.02} enableDamping
+                    maxDistance={220} minDistance={5}
+                    maxPolarAngle={Math.PI} minPolarAngle={0}
+                    target={[0, 10, 0]}
+                  />
+                )}
+              </Suspense>
+            </Canvas>
+          </CanvasErrorBoundary>
         </>
       )}
     </div>

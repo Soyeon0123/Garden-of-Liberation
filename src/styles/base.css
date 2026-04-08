@@ -1,0 +1,100 @@
+/* ============================================================
+   BASE STYLES
+   base.css — body, 전역 요소, 기본 리셋
+   tokens.css 다음에 import 할 것
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 1em;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  line-height: 1.7;
+  transition: background-color 0.5s ease, color 0.5s ease;
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--color-text-secondary);
+  margin-top: 0;
+}
+
+p {
+  margin-top: 0;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+img,
+svg,
+video,
+canvas,
+iframe {
+  vertical-align: middle;
+  max-width: 100%;
+}
+
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+textarea {
+  resize: vertical;
+}
+
+hr {
+  display: block;
+  height: 1px;
+  border: 0;
+  border-top: 1px solid var(--secondary-color);
+  margin: 1em 0;
+  padding: 0;
+}
+
+/* Selection highlight */
+::selection {
+  background: var(--color-accent-gold);
+  color: var(--primary-color);
+  text-shadow: none;
+}
+
+/* Utility */
+.hidden,
+[hidden] {
+  display: none !important;
+}
+
+.visually-hidden {
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
