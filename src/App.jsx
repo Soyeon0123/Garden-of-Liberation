@@ -333,7 +333,7 @@ const INTRO_PANELS = [
       {
         type: 'narration',
         text: 'Changdeokgung in spring is always covered with bright blossoms. From late March to early April, many flowers begin to bloom.',
-        style: { top: '10px', left: '10px', width: '300px' },
+        style: { top: '-20px', left: '250px', width: '50%' },
       },
     ],
   },
@@ -343,7 +343,7 @@ const INTRO_PANELS = [
       {
         type: 'narration',
         text: 'My mom and I often visit the palace like this when the weather is nice.',
-        style: { top: '16px', left: '12px', width: '130px' },
+        style: { top: '500px', left: '270px', width: '50%' },
       },
     ],
   },
@@ -353,7 +353,7 @@ const INTRO_PANELS = [
       {
         type: 'speech',
         text: 'Wow... it is so beautiful!',
-        style: { bottom: '12px', left: '10px', right: '10px' },
+        style: { bottom: '480px', left: '-15px', right: '10px' },
       },
     ],
   },
