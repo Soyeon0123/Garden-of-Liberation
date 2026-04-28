@@ -4,6 +4,7 @@ import { OrbitControls, Environment, Html, Billboard } from '@react-three/drei'
 import { EffectComposer, Outline, Selection, Select } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import './styles/tokens.css'
+import './styles/comic.css'
 
 const BASE = import.meta.env.BASE_URL
 
@@ -325,37 +326,131 @@ function DialogueOverlay({ dialogues, onComplete }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────
-// IntroComic
-// ─────────────────────────────────────────────────────────────
+const INTRO_PANELS = [
+  {
+    image: `${BASE}comics/intro/panel1.png`,
+    bubbles: [
+      {
+        type: 'narration',
+        text: 'Changdeokgung in spring is always covered with bright blossoms. From late March to early April, many flowers begin to bloom.',
+        style: { top: '10px', left: '10px', width: '300px' },
+      },
+    ],
+  },
+  {
+    image: `${BASE}comics/intro/panel2.png`,
+    bubbles: [
+      {
+        type: 'narration',
+        text: 'My mom and I often visit the palace like this when the weather is nice.',
+        style: { top: '16px', left: '12px', width: '130px' },
+      },
+    ],
+  },
+  {
+    image: `${BASE}comics/intro/panel3.png`,
+    bubbles: [
+      {
+        type: 'speech',
+        text: 'Wow... it is so beautiful!',
+        style: { bottom: '12px', left: '10px', right: '10px' },
+      },
+    ],
+  },
+]
+ 
+// padding 40px * 2 + gap 20px * 2 = 120px
+const PANEL_WIDTH = 'calc((100vw - 120px) / 3)'
+ 
 function IntroComic({ onComplete }) {
-  const panels = [
-    `${BASE}comics/intro/panel1.png`,
-    `${BASE}comics/intro/panel2.png`,
-    `${BASE}comics/intro/panel3.png`,
-  ]
-  const [visible, setVisible] = useState(1)
+  const totalSteps = INTRO_PANELS.length * 2
+  const [step, setStep] = useState(1)
+ 
   const handleClick = () => {
-    if (visible < panels.length) setVisible(visible + 1)
+    if (step < totalSteps) setStep(s => s + 1)
     else onComplete()
   }
+ 
+  const isPanelVisible  = (i) => step >= i * 2 + 1
+  const isBubbleVisible = (i) => step >= i * 2 + 2
+ 
   return (
-    <div onClick={handleClick} style={{
-      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'black', cursor: 'pointer', zIndex: 9999,
-      gap: '20px', padding: '40px',
-    }}>
-      {panels.slice(0, visible).map((panel, i) => (
-        <img key={i} src={panel} alt={`Intro panel ${i + 1}`} style={{
-          height: '65vh', width: 'auto', objectFit: 'contain',
-          userSelect: 'none', opacity: 0,
-          animation: `fadeIn 0.5s ease-in-out ${i * 0.1}s forwards`,
-        }} />
+    <div
+      onClick={handleClick}
+      style={{
+        position: 'fixed', top: 0, left: 0,
+        width: '100vw', height: '100vh',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'black',
+        cursor: 'pointer',
+        zIndex: 9999,
+        gap: '20px',
+        padding: '40px',
+        boxSizing: 'border-box',
+      }}
+    >
+      {INTRO_PANELS.map((panel, i) => (
+        // 자리는 항상 차지 — 아직 안 보일 때는 invisible
+        <div
+          key={i}
+          style={{
+            width: PANEL_WIDTH,
+            maxHeight: '65vh',
+            flexShrink: 0,
+            visibility: isPanelVisible(i) ? 'visible' : 'hidden',
+            opacity: isPanelVisible(i) ? undefined : 0,
+          }}
+        >
+          {isPanelVisible(i) && (
+            <div
+              className="comic-panel"
+              style={{
+                position: 'relative',
+                width: '100%',
+                opacity: 0,
+                animation: `fadeIn 0.5s ease-in-out forwards`,
+              }}
+            >
+              <img
+                src={panel.image}
+                alt={`Intro panel ${i + 1}`}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  maxHeight: '65vh',
+                  objectFit: 'contain',
+                  display: 'block',
+                  userSelect: 'none',
+                }}
+              />
+ 
+              {isBubbleVisible(i) && panel.bubbles.map((bubble, j) => (
+                <div
+                  key={j}
+                  className={bubble.type === 'narration' ? 'b-narration' : 'b-speech'}
+                  style={{
+                    ...bubble.style,
+                    animationDelay: `${j * 0.1}s`,
+                    opacity: 0,
+                    animationFillMode: 'forwards',
+                  }}
+                >
+                  {bubble.text}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ))}
-      <div style={{ position: 'absolute', bottom: '40px', color: 'white', fontSize: '14px', opacity: 0.7, animation: 'pulse 2s ease-in-out infinite' }}>
-        {visible < panels.length ? '클릭하여 계속' : '클릭하여 시작'}
+ 
+      <div style={{
+        position: 'absolute', bottom: '40px',
+        color: 'white', fontSize: '14px', opacity: 0.7,
+        animation: 'pulse 2s ease-in-out infinite',
+      }}>
+        {step >= totalSteps ? 'click to start' : 'click to continue'}
       </div>
+ 
       <style>{`
         @keyframes pulse  { 0%,100%{opacity:.4} 50%{opacity:.9} }
         @keyframes fadeIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
@@ -363,6 +458,45 @@ function IntroComic({ onComplete }) {
     </div>
   )
 }
+
+// ─────────────────────────────────────────────────────────────
+// IntroComic
+// ─────────────────────────────────────────────────────────────
+// function IntroComic({ onComplete }) {
+//   const panels = [
+//     `${BASE}comics/intro/panel1.png`,
+//     `${BASE}comics/intro/panel2.png`,
+//     `${BASE}comics/intro/panel3.png`,
+//   ]
+//   const [visible, setVisible] = useState(1)
+//   const handleClick = () => {
+//     if (visible < panels.length) setVisible(visible + 1)
+//     else onComplete()
+//   }
+//   return (
+//     <div onClick={handleClick} style={{
+//       position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+//       display: 'flex', alignItems: 'center', justifyContent: 'center',
+//       background: 'black', cursor: 'pointer', zIndex: 9999,
+//       gap: '20px', padding: '40px',
+//     }}>
+//       {panels.slice(0, visible).map((panel, i) => (
+//         <img key={i} src={panel} alt={`Intro panel ${i + 1}`} style={{
+//           height: '65vh', width: 'auto', objectFit: 'contain',
+//           userSelect: 'none', opacity: 0,
+//           animation: `fadeIn 0.5s ease-in-out ${i * 0.1}s forwards`,
+//         }} />
+//       ))}
+//       <div style={{ position: 'absolute', bottom: '40px', color: 'white', fontSize: '14px', opacity: 0.7, animation: 'pulse 2s ease-in-out infinite' }}>
+//         {visible < panels.length ? '클릭하여 계속' : '클릭하여 시작'}
+//       </div>
+//       <style>{`
+//         @keyframes pulse  { 0%,100%{opacity:.4} 50%{opacity:.9} }
+//         @keyframes fadeIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+//       `}</style>
+//     </div>
+//   )
+// }
 
 // ─────────────────────────────────────────────────────────────
 // SceneModels

@@ -1,0 +1,57 @@
+/* ─── 패널 컨테이너 ─────────────────────────────────────── */
+.comic-panel {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  height: 100%;
+}
+ 
+.comic-panel img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+}
+ 
+/* ─── 말풍선 공통 ────────────────────────────────────────── */
+.b-narration,
+.b-speech {
+  position: absolute;
+  max-width: 55%;
+  word-break: keep-all;
+  line-height: 1.65;
+  pointer-events: none;
+  animation: bubbleFadeIn 0.25s ease-out forwards;
+}
+ 
+/* ─── Narration — 상황 설명 ─────────────────────────────── */
+.b-narration {
+  background: var(--primary-color, #1a1a1a);
+  color: var(--bg-color, #f5f0e8);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md, 13px);
+  font-style: italic;
+  letter-spacing: 0.02em;
+  padding: 8px 14px;
+  border-radius: 2px;
+  max-width: 80%;
+}
+ 
+/* ─── Speech — 인물 대화 ─────────────────────────────────── */
+.b-speech {
+  background: var(--bg-color, #fffdf7);
+  color: var(--color-text, #111);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md, 14px);
+  padding: 9px 16px;
+  border-radius: 20px;
+  border: 2.5px solid var(--primary-color, #1a1a1a);
+  box-shadow: 3px 3px 0 var(--primary-color, #1a1a1a);
+}
+ 
+/* ─── 등장 애니메이션 ────────────────────────────────────── */
+@keyframes bubbleFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
