@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { buildSegments } from '../../story/script'
 import CutScene from './CutScene'
 import InventoryPopup from './InventoryPopup'
+import { CUTSCENES, ITEMS, getFigure } from '../../story/assets'
+import { sceneImageLookahead } from '../../story/imageLookahead'
+import { useImagePreload } from '../../flow/imagePreload'
 
 // ─────────────────────────────────────────────────────────────
 // ScenePlayer — 대본(story/chapters/*.js)을 처음부터 순서대로 재생
@@ -20,7 +23,12 @@ export default function ScenePlayer({ scene, Dialogue, onComplete, onItem, onCue
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const segments = useMemo(() => buildSegments(scene), sceneList)
   const [step, setStep] = useState(0)
+  const [dialoguePosition, setDialoguePosition] = useState({ step: 0, index: 0 })
   const seg = segments[step]
+  const dialogueIndex = dialoguePosition.step === step ? dialoguePosition.index : 0
+  useImagePreload(sceneImageLookahead(segments, step, dialogueIndex, {
+    cutscenes: CUTSCENES, items: ITEMS, getFigure,
+  }))
 
   // 카메라·분위기·연출 신호 보내기 (대사 줄에 붙은 신호도 이걸로)
   const sendCue = (kind, name) => {
@@ -48,7 +56,7 @@ export default function ScenePlayer({ scene, Dialogue, onComplete, onItem, onCue
   }, [step])
 
   if (!seg) return null
-  if (seg.type === 'dialogue')  return <Dialogue key={step} dialogues={seg.lines} onCue={sendCue} onComplete={next} />
+  if (seg.type === 'dialogue')  return <Dialogue key={step} dialogues={seg.lines} onCue={sendCue} onComplete={next} onPositionChange={(index) => setDialoguePosition({ step, index })} />
   if (seg.type === 'cutscene')  return <CutScene key={step} id={seg.id} narration={seg.narration} onComplete={next} />
   if (seg.type === 'inventory') return <InventoryPopup key={step} id={seg.id} onComplete={next} />
   return null
