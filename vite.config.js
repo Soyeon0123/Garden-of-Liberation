@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import voiceList from './vite-voice-list.js'
+import imageOptimization from './vite-image-optimization.js'
+import imageOptions from './image-optimization.config.js'
 
 export default defineConfig(({ command }) => ({
   
@@ -9,7 +11,7 @@ export default defineConfig(({ command }) => ({
    * This allows us to serve the app correctly both in development and when deployed to GitHub Pages.
    */
   base: command === 'build' ? '/Garden-of-Liberation/' : '/',
-  plugins: [react(), voiceList()],
+  plugins: [react(), voiceList(), imageOptimization(imageOptions)],
   
   // Three.js 최적화
   optimizeDeps: {
