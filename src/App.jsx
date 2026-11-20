@@ -13,7 +13,8 @@ import TimelinePage   from './components/flow/TimelinePage'
 import LoadingScreen, { SceneMountedSignal } from './components/flow/LoadingScreen'
 
 // ─── 에셋 경로 모음 (개발 중엔 콘솔에서 checkAssets() 로 빠진 파일 확인) ───
-import { MOTION } from './story/assets'
+import { CHOICE_TO_ENDING, ENDINGS, MOTION, getFigure } from './story/assets'
+import { useImagePreload } from './flow/imagePreload'
 import MotionPlayer from './components/story/MotionPlayer'
 import ScenePlayer from './components/story/ScenePlayer'
 import MoodOverlay from './components/story/MoodOverlay'
@@ -50,18 +51,10 @@ const BASE = import.meta.env.BASE_URL
 
 // ─── 3D 공간 (따로 내려받기) ──────────────────────────────────
 // three.js·모델·꽃 등 3D 관련 코드는 components/3D/Scene3D.jsx 로 옮겼어요.
-// 앱을 처음 열 때는 내려받지 않고, 웹툰 이미지가 다 준비된 뒤 온보딩 화면에 머무는 동안 준비(Scene3DPrep)합니다.
 const Scene3D     = lazy(() => import('./components/3D/Scene3D'))
 const Scene3DPrep = lazy(() => import('./components/3D/Scene3D').then((m) => ({ default: m.Scene3DPrep })))
 
 // ※ STAGES 정의는 ./flow/stages.js 로 이동했습니다.
-
-// ─── 캐릭터 이미지 헬퍼 ──────────────────────────────────────
-const getCharImg = (charName, expression) => {
-  if (!charName) return null
-  const expr = expression ? `_${expression}` : ''
-  return `${BASE}UI/figure_illust/${charName}${expr}.png`
-}
 
 const ACTIVE_OUTLINE = `
   drop-shadow(2px 0px 0px #ffffff)
@@ -69,60 +62,6 @@ const ACTIVE_OUTLINE = `
   drop-shadow(0px 2px 0px #ffffff)
   drop-shadow(0px -2px 0px #ffffff)
 `
-
-const ALL_PRELOAD = [
-  `${BASE}images/Nakai_bg.png`, `${BASE}images/Jang_bg.png`, `${BASE}images/Paper_tex_2.png`,
-  `${BASE}images/mison_namu.png`,
-  `${BASE}typo/mison_namu_typo.svg`, `${BASE}typo/Uchiwa_noki_typo.svg`,
-  `${BASE}typo/Abeliophyllum_distichum_typo.svg`, `${BASE}typo/white_forsythia_typo.svg`,
-  `${BASE}UI/figure_illust/nakai.png`,       `${BASE}UI/figure_illust/nakai_smile.png`,
-  `${BASE}UI/figure_illust/nakai_annoying.png`, `${BASE}UI/figure_illust/nakai_exciting.png`,
-  `${BASE}UI/figure_illust/nakai_disappointed.png`,
-  `${BASE}UI/figure_illust/soyeon.png`,      `${BASE}UI/figure_illust/soyeon_curious.png`,
-  `${BASE}UI/figure_illust/soyeon_smile.png`, `${BASE}UI/figure_illust/soyeon_surprised.png`,
-  `${BASE}UI/figure_illust/soyeon_disappointed.png`,
-  `${BASE}UI/figure_illust/minjung.png`,     `${BASE}UI/figure_illust/minjung_smile.png`,
-  `${BASE}UI/figure_illust/minjung_surprised.png`, `${BASE}UI/figure_illust/minjung_disappointed.png`,
-  `${BASE}UI/figure_illust/hyungdoo.png`,    `${BASE}UI/figure_illust/hyungdoo_smile.png`,
-  `${BASE}UI/figure_illust/hyungdoo_trueSmile.png`, `${BASE}UI/figure_illust/hyungdoo_disappointed.png`,
-  `${BASE}UI/standing_icon/nakai_standing.png`, `${BASE}UI/standing_icon/hyungdoo_standing.png`,
-]
-
-// ─── 단계별 미리 불러오기 ─────────────────────────────────────
-// 웹툰은 가장 먼저 보이는 화면이라, 웹툰을 보는 동안에는 무거운 3D 작업을 하지 않음
-//   1) 웹툰 이미지 전부 (페이지 순서대로, 해독까지 미리)
-//   2) 그다음 온보딩 화면에 머무는 동안에만 3D 준비 시작 (Scene3DPrep)
-//      → Start 를 빨리 눌렀다면 3D 준비는 3D 공간 진입 때로 미뤄짐 (첫 대화창 뒤에서 로딩)
-//   3) 캐릭터 일러스트 등
-const KEEP_DECODED = []   // 해독된 이미지를 붙잡아 두어 다시 해독하지 않게
-
-function preloadImages(srcs) {
-  return Promise.all(srcs.map((src) => new Promise((resolve) => {
-    const img = new Image()
-    img.src = src
-    KEEP_DECODED.push(img)
-    const decoding = img.decode ? img.decode() : new Promise((r, j) => { img.onload = r; img.onerror = j })
-    decoding.catch(() => {}).then(resolve)
-  })))
-}
-
-function useStagedPreload() {
-  const [comicReady, setComicReady] = useState(false)
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const comic = INTRO_PANELS.map((p) => p.image)
-      for (let i = 0; i < comic.length; i += 6) {          // 두 페이지씩 순서대로
-        await preloadImages(comic.slice(i, i + 6))
-        if (cancelled) return
-      }
-      setComicReady(true)
-      await preloadImages(ALL_PRELOAD)
-    })()
-    return () => { cancelled = true }
-  }, [])
-  return comicReady
-}
 
 const BOX_MARGIN = 50
 
@@ -401,6 +340,7 @@ function IntroComic({ onComplete }) {
 
   const panels     = INTRO_PAGES[pageIdx]
   const totalSteps = panels.length * 2
+  useImagePreload(INTRO_PAGES.slice(pageIdx, pageIdx + 2).flatMap((page) => page.map((panel) => panel.image)), { priority: 0 })
 
   const handleClick = () => {
     if (step < totalSteps) {
@@ -519,6 +459,7 @@ function EndingContent({ onComplete }) {
   const panels     = OUTRO_PAGES[pageIdx]
   const isSoloPage = panels[0].solo === true
   const totalSteps = panels.length * 2
+  useImagePreload(OUTRO_PAGES.slice(pageIdx, pageIdx + 2).flatMap((page) => page.map((panel) => panel.image)), { priority: 0 })
 
   const handleClick = () => {
     if (step < totalSteps) {
@@ -607,6 +548,7 @@ function EndingContent({ onComplete }) {
 function ImageSlideshow({ images, onComplete }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [fadeOut, setFadeOut] = useState(false)
+  useImagePreload(images.slice(currentIndex + 1, currentIndex + 2))
   const handleClick = () => {
     if (currentIndex < images.length - 1) {
       setFadeOut(true)
@@ -640,17 +582,22 @@ function ImageSlideshow({ images, onComplete }) {
 // ─────────────────────────────────────────────────────────────
 // DialogueOverlay
 // ─────────────────────────────────────────────────────────────
-function DialogueOverlay({ dialogues, onComplete, onCue }) {
+function DialogueOverlay({ dialogues, onComplete, onCue, onPositionChange }) {
   const [idx, setIdx] = useState(0)
   const d = dialogues[idx]
   const isLeftActive  = d.side === 'left'
   const isRightActive = d.side === 'right'
   const isNarration   = d.side === 'narration'
-  const leftImg  = getCharImg(d.leftChar,  isLeftActive  ? d.expression : null)
-  const rightImg = getCharImg(d.rightChar, isRightActive ? d.expression : null)
+  const leftImg  = getFigure(d.leftChar,  isLeftActive  ? d.expression : null)
+  const rightImg = getFigure(d.rightChar, isRightActive ? d.expression : null)
   const DIALOGUE_BOX_H = 220
   const CHAR_HEIGHT     = '90vh'
-  const handleClick = () => { if (idx < dialogues.length - 1) setIdx(idx + 1); else onComplete() }
+  const handleClick = () => {
+    if (idx < dialogues.length - 1) {
+      setIdx(idx + 1)
+      onPositionChange?.(idx + 1)
+    } else onComplete()
+  }
 
   // 대사가 바뀔 때마다: 그 인물의 목소리 (story/voice.js)
   //   + 이 대사에 붙은 카메라·분위기 신호 (대사창을 끊지 않고 보내서 스탠딩 일러스트가 튀지 않음)
@@ -760,6 +707,7 @@ function ChapterMotion({ chapter, onComplete, allowSkip }) {
 // 대화를 보는 동안 다음 챕터 영상을 미리 받아 둠 (화면엔 안 보임)
 function MotionPreload({ chapter }) {
   const src = CHAPTER_MOTION[chapter]
+  useImagePreload(src ? [] : chapterImages[chapter]?.slice(0, 1) ?? [])
   return src ? <video src={src} preload="auto" muted playsInline style={{ display: 'none' }} /> : null
 }
 
@@ -781,8 +729,8 @@ const ENDING_DIALOGUE_STAGE = {
 }
 
 function MainApp() {
-  const comicReady = useStagedPreload()
   const [currentStage, setCurrentStage] = useState(STAGES.ONBOARDING)
+  const [introReady, setIntroReady] = useState(false)
   const [endingType, setEndingType] = useState(null)          // 'korean' | 'japanese' | 'scientific' | 'english'
   const [completedRuns, setCompletedRuns] = useState(getCompletedRuns)
   const countedThisRun = useRef(false)
@@ -811,6 +759,19 @@ function MainApp() {
   const [loaderDone,   setLoaderDone]   = useState(false)
   const markSceneMounted = useCallback(() => setSceneMounted(true), [])
   const finishLoader     = useCallback(() => setLoaderDone(true), [])
+  const markIntroReady = useCallback(() => setIntroReady(true), [])
+
+  const preparingIntro = currentStage === STAGES.ONBOARDING || currentStage === STAGES.INTRO_COMIC
+  useImagePreload(preparingIntro && !introReady ? INTRO_PAGES[0].map((panel) => panel.image) : [], {
+    priority: 0, onReady: preparingIntro && !introReady ? markIntroReady : undefined,
+  })
+  const chosenEnding = CHOICE_TO_ENDING[endingType]?.ending
+  const preparingEnding = Object.values(ENDING_DIALOGUE_STAGE).includes(currentStage)
+  useImagePreload(preparingEnding && chosenEnding ? ENDINGS[chosenEnding].slice(0, 1) : [])
+  useImagePreload(
+    endingType === 'korean' && (preparingEnding || currentStage === STAGES.ENDING_CUTSCENE)
+      ? OUTRO_PAGES[0].map((panel) => panel.image) : [],
+  )
 
   const canSkip = completedRuns >= 1
   const allowMotionSkip = canSkip || import.meta.env.DEV   // 영상 건너뛰기: 2회차부터 (개발 중엔 항상)
@@ -840,6 +801,7 @@ function MainApp() {
   const handleCutsceneEnd = () => goTo(endingType === 'korean' ? STAGES.OUTRO_COMIC : STAGES.CREDITS)
   const handleRestart = () => {
     countedThisRun.current = false
+    setIntroReady(false)
     setEndingType(null)
     setMood(null)
     goTo(STAGES.ONBOARDING)
@@ -866,8 +828,8 @@ function MainApp() {
       {currentStage === STAGES.CREDITS         && <CreditsScreen  onTimeline={() => goTo(STAGES.TIMELINE)} onRestart={handleRestart} />}
       {currentStage === STAGES.TIMELINE        && <TimelinePage   onBack={() => goTo(STAGES.CREDITS)} />}
 
-      {/* ── 온보딩 화면에 머무는 동안에만 3D 공간을 미리 준비 (웹툰 중에는 하지 않음, 화면에는 안 보임) ── */}
-      {comicReady && currentStage === STAGES.ONBOARDING && (
+      {/* ── 첫 웹툰 페이지가 준비된 뒤 인트로를 보는 동안 3D 공간 준비 ── */}
+      {introReady && currentStage === STAGES.INTRO_COMIC && (
         <Suspense fallback={null}><Scene3DPrep /></Suspense>
       )}
 
