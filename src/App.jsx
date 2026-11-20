@@ -1,40 +1,60 @@
-import React, { Suspense, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Environment, Html, Billboard } from '@react-three/drei'
-import { EffectComposer, Outline, Selection, Select } from '@react-three/postprocessing'
-import * as THREE from 'three'
+import React, { Suspense, lazy, useState, useRef, useEffect, useCallback } from 'react'
 import './styles/tokens.css'
 import './styles/comic.css'
 
+// ─── 진행 흐름 (새로 추가) ─────────────────────────────────────
+import { STAGES, CHAPTER_STAGES, FULLSCREEN_STAGES } from './flow/stages'
+import { getCompletedRuns, addCompletedRun } from './flow/runCount'
+import SkipButton     from './components/flow/SkipButton'
+import Onboarding     from './components/flow/Onboarding'
+import EndingCutscene from './components/flow/EndingCutscene'
+import CreditsScreen  from './components/flow/CreditsScreen'
+import TimelinePage   from './components/flow/TimelinePage'
+import LoadingScreen, { SceneMountedSignal } from './components/flow/LoadingScreen'
+
+// ─── 에셋 경로 모음 (개발 중엔 콘솔에서 checkAssets() 로 빠진 파일 확인) ───
+import { MOTION } from './story/assets'
+import MotionPlayer from './components/story/MotionPlayer'
+import ScenePlayer from './components/story/ScenePlayer'
+import MoodOverlay from './components/story/MoodOverlay'
+import BgmPlayer from './components/story/BgmPlayer'
+import { playVoice, playVoices } from './story/voice'
+import { pickBgm } from './story/bgm'
+
+// ─── 대본 (Narrative Design V4) — 장면별 파일은 src/story/chapters/ ───
+import arrivalScene from './story/chapters/arrival'
+import chapter1Scene from './story/chapters/chapter1'
+import chapter1AfterScene from './story/chapters/chapter1After'
+import chapter2IntroScene from './story/chapters/chapter2Intro'
+import chapter2Scene from './story/chapters/chapter2'
+import chapter2AfterScene from './story/chapters/chapter2After'
+import chapter3Scene from './story/chapters/chapter3'
+import chapter3AfterScene from './story/chapters/chapter3After'
+import endingUchiwaScene from './story/endings/uchiwa'
+import endingScientificScene from './story/endings/scientific'
+import endingEnglishScene from './story/endings/english'
+import endingTrueScene from './story/endings/true'
+
+// 이름 선택 → 엔딩 대본
+const ENDING_SCENES = {
+  japanese:   endingUchiwaScene,       // Ending (1) The Objectified Name
+  scientific: endingScientificScene,   // Ending (2) Universal Authority
+  english:    endingEnglishScene,      // Ending (3) A Compromised World
+  korean:     endingTrueScene,         // True Ending
+}
+
+// ─── 3D 배경 캡처 모드 (?bg) ─────────────────────────────────
+import BackgroundCapture, { CAPTURE_MODE } from './capture/BackgroundCapture'
+
 const BASE = import.meta.env.BASE_URL
 
-// ─── 3D 모델 imports ──────────────────────────────────────────
-import Palace   from './components/3D/models/Palace'
-import Palace02 from './components/3D/models/Palace02'
-import Palace03 from './components/3D/models/Palace03'
-import Palace04 from './components/3D/models/Palace04'
-import Palace05 from './components/3D/models/Palace05'
-import Palace06 from './components/3D/models/Palace06'
-import Structure from './components/3D/models/Structure'
+// ─── 3D 공간 (따로 내려받기) ──────────────────────────────────
+// three.js·모델·꽃 등 3D 관련 코드는 components/3D/Scene3D.jsx 로 옮겼어요.
+// 앱을 처음 열 때는 내려받지 않고, 웹툰 이미지가 다 준비된 뒤 온보딩 화면에 머무는 동안 준비(Scene3DPrep)합니다.
+const Scene3D     = lazy(() => import('./components/3D/Scene3D'))
+const Scene3DPrep = lazy(() => import('./components/3D/Scene3D').then((m) => ({ default: m.Scene3DPrep })))
 
-// ─── Stage 정의 ───────────────────────────────────────────────
-const STAGES = {
-  INTRO_COMIC:        'intro_comic',
-  GARDEN_ARRIVAL:     'garden_arrival',
-  CHAPTER_1_DIALOGUE: 'chapter_1_dialogue',
-  CHAPTER_1_VIDEO:    'chapter_1_video',
-  CHAPTER_2_DIALOGUE: 'chapter_2_dialogue',
-  CHAPTER_2_VIDEO:    'chapter_2_video',
-  CHAPTER_3_DIALOGUE: 'chapter_3_dialogue',
-  CHAPTER_3_VIDEO:    'chapter_3_video',
-  CHAPTER_3_FINAL:    'chapter_3_final',
-  NAME_CHOICE:        'name_choice',
-  ENDING_2_DIALOGUE:  'ending_2_dialogue',
-  ENDING_3_DIALOGUE:  'ending_3_dialogue',
-  ENDING_4_DIALOGUE:  'ending_4_dialogue',
-  ENDING_COMIC:       'ending_comic',
-  CREDITS:            'credits',
-}
+// ※ STAGES 정의는 ./flow/stages.js 로 이동했습니다.
 
 // ─── 캐릭터 이미지 헬퍼 ──────────────────────────────────────
 const getCharImg = (charName, expression) => {
@@ -52,449 +72,241 @@ const ACTIVE_OUTLINE = `
 
 const ALL_PRELOAD = [
   `${BASE}images/Nakai_bg.png`, `${BASE}images/Jang_bg.png`, `${BASE}images/Paper_tex_2.png`,
-  `${BASE}images/mison_namu.png`, `${BASE}typo/mison_namu.png`, `${BASE}typo/Uchiwa-noki.svg`,
+  `${BASE}images/mison_namu.png`,
+  `${BASE}typo/mison_namu_typo.svg`, `${BASE}typo/Uchiwa_noki_typo.svg`,
+  `${BASE}typo/Abeliophyllum_distichum_typo.svg`, `${BASE}typo/white_forsythia_typo.svg`,
   `${BASE}UI/figure_illust/nakai.png`,       `${BASE}UI/figure_illust/nakai_smile.png`,
   `${BASE}UI/figure_illust/nakai_annoying.png`, `${BASE}UI/figure_illust/nakai_exciting.png`,
-  `${BASE}UI/figure_illust/nakai_dissapointed.png`,
+  `${BASE}UI/figure_illust/nakai_disappointed.png`,
   `${BASE}UI/figure_illust/soyeon.png`,      `${BASE}UI/figure_illust/soyeon_curious.png`,
   `${BASE}UI/figure_illust/soyeon_smile.png`, `${BASE}UI/figure_illust/soyeon_surprised.png`,
-  `${BASE}UI/figure_illust/soyeon_dissapointed.png`,
+  `${BASE}UI/figure_illust/soyeon_disappointed.png`,
   `${BASE}UI/figure_illust/minjung.png`,     `${BASE}UI/figure_illust/minjung_smile.png`,
-  `${BASE}UI/figure_illust/minjung_surprised.png`, `${BASE}UI/figure_illust/minjung_dissapointed.png`,
+  `${BASE}UI/figure_illust/minjung_surprised.png`, `${BASE}UI/figure_illust/minjung_disappointed.png`,
   `${BASE}UI/figure_illust/hyungdoo.png`,    `${BASE}UI/figure_illust/hyungdoo_smile.png`,
-  `${BASE}UI/figure_illust/hyungdoo_trueSmile.png`, `${BASE}UI/figure_illust/hyungdoo_dissapointed.png`,
+  `${BASE}UI/figure_illust/hyungdoo_trueSmile.png`, `${BASE}UI/figure_illust/hyungdoo_disappointed.png`,
   `${BASE}UI/standing_icon/nakai_standing.png`, `${BASE}UI/standing_icon/hyungdoo_standing.png`,
 ]
 
-function usePreloadImages() {
-  React.useEffect(() => {
-    ALL_PRELOAD.forEach(src => { const i = new Image(); i.src = src })
+// ─── 단계별 미리 불러오기 ─────────────────────────────────────
+// 웹툰은 가장 먼저 보이는 화면이라, 웹툰을 보는 동안에는 무거운 3D 작업을 하지 않음
+//   1) 웹툰 이미지 전부 (페이지 순서대로, 해독까지 미리)
+//   2) 그다음 온보딩 화면에 머무는 동안에만 3D 준비 시작 (Scene3DPrep)
+//      → Start 를 빨리 눌렀다면 3D 준비는 3D 공간 진입 때로 미뤄짐 (첫 대화창 뒤에서 로딩)
+//   3) 캐릭터 일러스트 등
+const KEEP_DECODED = []   // 해독된 이미지를 붙잡아 두어 다시 해독하지 않게
+
+function preloadImages(srcs) {
+  return Promise.all(srcs.map((src) => new Promise((resolve) => {
+    const img = new Image()
+    img.src = src
+    KEEP_DECODED.push(img)
+    const decoding = img.decode ? img.decode() : new Promise((r, j) => { img.onload = r; img.onerror = j })
+    decoding.catch(() => {}).then(resolve)
+  })))
+}
+
+function useStagedPreload() {
+  const [comicReady, setComicReady] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const comic = INTRO_PANELS.map((p) => p.image)
+      for (let i = 0; i < comic.length; i += 6) {          // 두 페이지씩 순서대로
+        await preloadImages(comic.slice(i, i + 6))
+        if (cancelled) return
+      }
+      setComicReady(true)
+      await preloadImages(ALL_PRELOAD)
+    })()
+    return () => { cancelled = true }
   }, [])
+  return comicReady
 }
 
 const BOX_MARGIN = 50
 
 // ─────────────────────────────────────────────────────────────
-// 대사 데이터
+// 대사 데이터 → 모두 src/story/ 로 옮김 (Narrative Design V4)
+//   정원 도착·1~3장 : src/story/chapters/   엔딩 4개 : src/story/endings/
 // ─────────────────────────────────────────────────────────────
-const DIALOGUES = {
-
-  gardenArrival: [
-    { character: 'Soyeon', expression: 'curious', text: "The nameplate... it's empty.",                                              side: 'right', leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Mother', expression: null,       text: "You're right... And somehow, this place feels familiar.",                   side: 'left',  leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Soyeon', expression: 'curious',  text: "Mom, didn't you tell me this plant's name earlier? What was it again?",    side: 'right', leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Mother', expression: null,       text: "That's strange... I definitely knew it... but I suddenly can't remember...", side: 'left', leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Soyeon', expression: 'curious',  text: "Should we ask him?",                                                        side: 'right', leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Mother', expression: 'smile',    text: "Yes... that's a good idea. Maybe he knows the name.",                       side: 'left',  leftChar: 'minjung', rightChar: 'soyeon' },
-  ],
-
-  chapter1: [
-    { character: 'Nakai',  expression: null,           text: "...Who are you?",                                                                                                                      side: 'left',  leftChar: 'nakai', rightChar: 'soyeon'  },
-    { character: 'Soyeon', expression: 'curious',      text: "Oh — hello. It's our first time here... Do you happen to know the name of that plant?",                                                side: 'right', leftChar: 'nakai', rightChar: 'soyeon'  },
-    { character: 'Mother', expression: null,           text: "My daughter is curious about it. Would you be willing to tell us?",                                                                    side: 'right', leftChar: 'nakai', rightChar: 'minjung' },
-    { character: 'Nakai',  expression: null,           text: "Why are you interested in its name?",                                                                                                  side: 'left',  leftChar: 'nakai', rightChar: 'minjung' },
-    { character: 'Nakai',  expression: 'smile',        text: "I discovered this tree in Korea in 1917. I call it Uchiwa-noki.",                                                                     side: 'left',  leftChar: 'nakai', rightChar: 'soyeon'  },
-    { character: 'Soyeon', expression: 'curious',      text: "Uchiwa-noki...? If it was discovered in Korea... Wouldn't that make it a Korean plant?",                                               side: 'right', leftChar: 'nakai', rightChar: 'soyeon'  },
-    { character: 'Nakai',  expression: null,           text: "I was the first to publish it in academia. That's why my name — Nakai — appears in the scientific name.",                              side: 'left',  leftChar: 'nakai', rightChar: 'soyeon'  },
-    { character: 'Mother', expression: null,           text: "Is publishing first really that important?",                                                                                            side: 'right', leftChar: 'nakai', rightChar: 'minjung' },
-    { character: 'Nakai',  expression: null,           text: "Of course. The scholar who first describes a new plant receives naming rights. Leaving a name behind... is a kind of immortality.",    side: 'left',  leftChar: 'nakai', rightChar: 'minjung' },
-    { character: 'Soyeon', expression: 'dissapointed', text: "Then... is there no Korean name?",                                                                                                     side: 'right', leftChar: 'nakai', rightChar: 'soyeon'  },
-    { character: 'Nakai',  expression: 'annoying',     text: "A Korean name? Korea is part of the Japanese Empire... Why would it need a separate name?",                                            side: 'left',  leftChar: 'nakai', rightChar: 'soyeon'  },
-    { character: 'Soyeon', expression: 'surprised',    text: "Wait... You're not from the present, are you?",                                                                                        side: 'right', leftChar: 'nakai', rightChar: 'soyeon'  },
-    { character: 'Mother', expression: 'surprised',    text: "Soyeon... this looks like the Japanese colonial period.",                                                                               side: 'right', leftChar: 'nakai', rightChar: 'minjung' },
-    { character: 'Nakai',  expression: 'exciting',     text: "It seems I'll have to personally demonstrate the academic contributions of the Japanese Empire.",                                        side: 'left',  leftChar: 'nakai', rightChar: 'minjung' },
-  ],
-
-  chapter2Reflection: [
-    { character: 'Soyeon', expression: null,           text: "I had no idea plant names followed such a structured system...",                                 side: 'right', leftChar: null, rightChar: 'soyeon'  },
-    { character: 'Mother', expression: null,           text: "Yes... and it's surprising how Western imperial science was adopted during the colonial period.",  side: 'right', leftChar: null, rightChar: 'minjung' },
-    { character: 'Soyeon', expression: 'dissapointed', text: "...For some reason... the tree looks a little sad now.",                                          side: 'right', leftChar: null, rightChar: 'soyeon'  },
-    { character: 'Mother', expression: null,           text: "I understand... But I don't think that's the name we were looking for.",                          side: 'right', leftChar: null, rightChar: 'minjung' },
-  ],
-
-  chapter2Main: [
-    { character: 'Hyungdoo', expression: null,        text: "...Who are you?",                                                                                                                           side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Soyeon',   expression: 'curious',   text: "Sorry for surprising you. We're trying to find the name of that plant in the center.",                                                       side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Mother',   expression: null,        text: "My daughter really wants to know its name.",                                                                                                 side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
-    { character: 'Hyungdoo', expression: 'smile',     text: "That plant was recorded in the Korean Plant Name Collection. It's called the Misun Tree.",                                                   side: 'left',  leftChar: 'hyungdoo', rightChar: 'minjung' },
-    { character: 'Soyeon',   expression: 'curious',   text: "May I ask who you are?",                                                                                                                     side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Hyungdoo', expression: null,        text: "My name is Chang Hyung-doo. I'm a botanist studying plants here in Korea.",                                                                  side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Hyungdoo', expression: 'smile',     text: "We formed the Joseon Botanical Research Society. One of our most important goals was to give Korean names to plants previously known only by Japanese names.", side: 'left', leftChar: 'hyungdoo', rightChar: 'soyeon' },
-    { character: 'Soyeon',   expression: 'curious',   text: "Why was it important not to use the Japanese name?",                                                                                         side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Hyungdoo', expression: null,        text: "I believed Korean plants should be seen through Korean eyes. I wanted to give beautiful names to the plants that grow on this land... names that belonged to us.", side: 'left', leftChar: 'hyungdoo', rightChar: 'soyeon' },
-    { character: 'Soyeon',   expression: null,        text: "I never realized that so much effort and history were hidden behind the names of plants...",                                                  side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Mother',   expression: null,        text: "It's touching... and also a little sad that these stories aren't widely known.",                                                              side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
-    { character: 'Hyungdoo', expression: 'trueSmile', text: "It's alright. If future generations continue to use Korean names and remember their meaning... that's enough.",                               side: 'left',  leftChar: 'hyungdoo', rightChar: 'minjung' },
-    { character: 'Soyeon',   expression: 'smile',     text: "Thank you for sharing this story.",                                                                                                          side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Mother',   expression: null,        text: "Now... we can finally write the name on the sign.",                                                                                          side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
-  ],
-
-  // ── Chapter 3 ─────────────────────────────────────────────────
-  // Phase 1: ch2 비디오 후 엄마+소연 짧은 반응 대화
-  chapter3Reflection: [
-    { character: 'Soyeon', expression: null,      text: "So much history... hidden behind just one name...",      side: 'right', leftChar: null, rightChar: 'soyeon'  },
-    { character: 'Mother', expression: 'smile',   text: "And yet... here it still stands. Still blooming.",        side: 'right', leftChar: null, rightChar: 'minjung' },
-  ],
-
-  // Phase 2: 미선나무 첫 대사 (기존 chapter3 의 lines 1–6, 마지막 질문 제외)
-  chapter3Pre: [
-    { character: 'Soyeon',     expression: 'surprised', text: "Wait... it's alive? Well... I mean, of course it's alive... but...",                    side: 'right',     leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Mother',     expression: 'surprised', text: "It's... talking?",                                                                        side: 'left',      leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Misun Tree', expression: null,        text: "This is... a place where anything is possible... Even my voice... can be heard here...", side: 'narration', leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Soyeon',     expression: 'curious',   text: "We found your name. If we write it on the sign... can we go back?",                       side: 'right',     leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Mother',     expression: null,        text: "Please... send us back to where we were.",                                                side: 'left',      leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Misun Tree', expression: null,        text: "Of course... But before that... would you listen to my story?",                           side: 'narration', leftChar: 'minjung', rightChar: 'soyeon' },
-  ],
-
-  // Phase 3: ch3 비디오 후 소연·엄마의 감상 (document "After Chapter 3" 섹션)
-  chapter3New: [
-    { character: 'Soyeon',     expression: null, text: "There were so many stories hidden in a name...",             side: 'right', leftChar: 'minjung', rightChar: 'soyeon' },
-    { character: 'Mother',     expression: null, text: "I learned so much today... It wasn't just a plant name.",    side: 'left',  leftChar: 'minjung', rightChar: 'soyeon' },
-  ],
-
-  // Phase 4: 미선나무 마지막 질문 → NAME_CHOICE
-  chapter3Final: [
-    { character: 'Misun Tree', expression: null, text: "A name... is more than a record... It is memory... So... what will you call me?", side: 'narration', leftChar: 'minjung', rightChar: 'soyeon' },
-  ],
-
-  // ── 엔딩 분기 ─────────────────────────────────────────────────
-  ending2: [
-    { character: 'Nakai',    expression: 'smile',        text: "So... like many others in Joseon, you've come to recognize the value of my work.",             side: 'left',  leftChar: 'nakai',    rightChar: 'soyeon'  },
-    { character: 'Hyungdoo', expression: 'dissapointed', text: "...If you understood what a name leaves behind... perhaps you might have chosen differently.",  side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Hyungdoo', expression: null,           text: "The colonization of Joseon... even reaches the names of plants...",                              side: 'left',  leftChar: 'hyungdoo', rightChar: 'minjung' },
-    { character: 'Soyeon',   expression: 'dissapointed', text: "...Maybe... we should have thought more carefully...",                                            side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-  ],
-
-  ending3: [
-    { character: 'Nakai',    expression: 'exciting',     text: "As expected. You recognize the greatness of Western classification systems.",                     side: 'left',  leftChar: 'nakai',    rightChar: 'soyeon'  },
-    { character: 'Hyungdoo', expression: 'dissapointed', text: "A scientific name... But it feels distant from our own identity.",                                side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Mother',   expression: null,           text: "Latin... A language no longer spoken, yet still holding authority...",                             side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
-    { character: 'Hyungdoo', expression: 'dissapointed', text: "...The scholar's name based on priority... stands clearly.",                                       side: 'left',  leftChar: 'hyungdoo', rightChar: 'minjung' },
-    { character: 'Soyeon',   expression: 'dissapointed', text: "...Was that too quick of a decision?",                                                             side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-  ],
-
-  ending4: [
-    { character: 'Nakai',    expression: null,           text: "English...?",                                                             side: 'left',  leftChar: 'nakai',    rightChar: 'soyeon'  },
-    { character: 'Hyungdoo', expression: null,           text: "Why choose an English name?",                                             side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Mother',   expression: null,           text: "Did you choose English so more people could understand?",                  side: 'right', leftChar: 'hyungdoo', rightChar: 'minjung' },
-    { character: 'Soyeon',   expression: null,           text: "...Yes... I thought more people could learn about it...",                  side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Hyungdoo', expression: 'dissapointed', text: "But sharing the Korean name would also be meaningful...",                  side: 'left',  leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-    { character: 'Soyeon',   expression: 'dissapointed', text: "...Did I compromise without realizing it?",                                side: 'right', leftChar: 'hyungdoo', rightChar: 'soyeon'  },
-  ],
-}
 
 // ─────────────────────────────────────────────────────────────
 // 인트로 컷 데이터  ─ cut_01 ~ cut_27, 3컷씩 9페이지
-//
-// bubbles 배열: { type: 'narration' | 'speech', text, style }
-//   narration → .b-narration CSS 클래스 (사각형)
-//   speech    → .b-speech   CSS 클래스 (말풍선)
-//
-// style 은 .comic-panel(position:relative) 기준 절대 좌표.
-// 이미지가 width:100% 이므로 left/right 는 % 또는 px 모두 가능.
-// 아래 위치값은 참고용이며 실제 이미지 레이아웃에 맞게 조정하세요.
 // ─────────────────────────────────────────────────────────────
 const pad2 = (n) => String(n).padStart(2, '0')
 
-// padding 40px*2 + gap 20px*2 = 120px  (원본 동일)
 const PANEL_WIDTH = 'calc((100vw - 120px) / 3)'
 
+// 말풍선에 voice: '이름' 을 적으면 말풍선이 나올 때 그 목소리가 재생돼요 (story/voice.js)
+//   외국인 커플 : 'foreign'   /   소연·엄마도 넣으려면 'Soyeon', 'Mother'
+//   한 컷에 말풍선이 여러 개면 순서대로 차례로 말해요
 const INTRO_PANELS = [
-  // ── Page 1: cut 01–03 ──────────────────────────────────────
   {
-    image: `${BASE}comics/intro/cut_01.png`,
+    image: `${BASE}comics/intro/01.png`,
     bubbles: [
-      {
-        type: 'narration',
-        text: 'Changdeokgung in spring is always covered with bright blossoms. From late March to early April, many flowers begin to bloom.',
-        style: { top: '-20px', left: '0', right: '0' },
-      },
+      { type: 'narration', text: 'Changdeokgung in spring is always covered with bright blossoms. From late March to early April, many flowers begin to bloom.', style: { top: '-20px', left: '0', right: '0' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_02.png`,
+    image: `${BASE}comics/intro/02.png`,
     bubbles: [
-      {
-        type: 'narration',
-        text: 'My mom and I often visit the palace like this when the weather is nice.',
-        style: { bottom: '-20px', left: '0', right: '0' },
-      },
+      { type: 'narration', text: 'My mom and I often visit the palace like this when the weather is nice.', style: { bottom: '-20px', left: '0', right: '0' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_03.png`,
+    image: `${BASE}comics/intro/03.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'Wow… it\'s so beautiful!',
-        style: { bottom: '80%', left: '-10%', right: '5%' },
-      },
-    ],
-  },
-
-  // ── Page 2: cut 04–06 ──────────────────────────────────────
-  {
-    image: `${BASE}comics/intro/cut_04.png`,
-    bubbles: [
-      {
-        type: 'speech',
-        text: 'See? I told you it was a good idea to come.',
-        style: { top: '-15%', left: '5%', right: '25%' },
-      },
-      {
-        type: 'speech',
-        text: 'Yeah, totally!',
-        style: { top: '-5%', right: '5%', left: '50%' },
-      },
+      { type: 'speech', text: 'Wow… it\'s so beautiful!', style: { bottom: '80%', left: '-10%', right: '5%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_05.png`,
+    image: `${BASE}comics/intro/04.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'Look at that tree! It\'s so beautiful. What\'s it called?',
-        style: { top: '5%', left: '5%', right: '5%' },
-      },
+      { type: 'speech', text: 'See? I told you it was a good idea to come.', style: { top: '-15%', left: '5%', right: '25%' } },
+      { type: 'speech', text: 'Yeah, totally!', style: { top: '-5%', right: '5%', left: '50%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_06.png`,
+    image: `${BASE}comics/intro/05.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'Hmm… that\'s called the Misun Tree. It\'s a species found only in Korea.',
-        style: { top: '-15%', left: '-5%', right: '5%' },
-      },
-    ],
-  },
-
-  // ── Page 3: cut 07–09 ──────────────────────────────────────
-  {
-    image: `${BASE}comics/intro/cut_07.png`,
-    bubbles: [
-      {
-        type: 'speech',
-        text: 'Really? But why is it called Misun?',
-        style: { top: ' 75%', left: '35%', right: '5%' },
-      },
+      { type: 'speech', text: 'Look at that tree! It\'s so beautiful. What\'s it called?', style: { top: '5%', left: '5%', right: '5%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_08.png`,
+    image: `${BASE}comics/intro/06.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'The shape of its seeds looks like a Misun fan. In old stories, royal attendants carried fans called Misun.',
-        style: { top: '65%', left: '2%', right: '5%' },
-      },
+      { type: 'speech', text: 'Hmm… that\'s called the miseon namu. It\'s a species found only in Korea.', style: { top: '-15%', left: '-5%', right: '5%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_09.png`,
+    image: `${BASE}comics/intro/07.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'Hmm…',
-        style: { top: '-10%', left: '25%', right: '30%' },
-      },
-    ],
-  },
-
-  // ── Page 4: cut 10–12 ──────────────────────────────────────
-  {
-    image: `${BASE}comics/intro/cut_10.png`,
-    bubbles: [
-      {
-        type: 'speech',
-        text: 'Let me check if you\'re right, Mom.',
-        style: { top: '-10%', left: '5%', right: '25%' },
-      },
-      {
-        type: 'speech',
-        text: 'Hey! You don\'t trust me?',
-        style: { top: '-20%', right: '-30%', left: '50%' },
-      },
+      { type: 'speech', text: 'Really? But why is it called Miseon?', style: { top: ' 75%', left: '35%', right: '5%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_11.png`,
+    image: `${BASE}comics/intro/08.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'Oh…',
-        style: { top: '5%', left: '5%', right: '60%' },
-      },
+      { type: 'speech', text: 'The shape of its seeds looks like a Miseon fan. In old stories, royal attendants carried fans called Miseon.', style: { top: '65%', left: '2%', right: '5%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_12.png`,
+    image: `${BASE}comics/intro/09.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'What a beautiful flowering tree!',
-        style: { top: '-15%', left: '-5%', right: '10%' },
-      },
-      {
-        type: 'speech',
-        text: 'It\'s stunning!',
-        style: { top: '5%', right: '15%', left: '50%' },
-      },
-    ],
-  },
-
-  // ── Page 5: cut 13–15 ──────────────────────────────────────
-  {
-    image: `${BASE}comics/intro/cut_13.png`,
-    bubbles: [
-      {
-        type: 'speech',
-        text: 'Excuse me, do you happen to know the name of this tree?',
-        style: { top: '-10%', left: '45%', right: '-5%' },
-      },
+      { type: 'speech', text: 'Hmm…', style: { top: '-10%', left: '25%', right: '30%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_14.png`,
+    image: `${BASE}comics/intro/10.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'Just a moment… I\'ll look up the English name.',
-        style: { bottom: '-5%', left: '-5%', right: '5%' },
-      },
+      { type: 'speech', text: 'Let me check if you\'re right, Mom.', style: { top: '-10%', left: '5%', right: '25%' } },
+      { type: 'speech', text: 'Hey! You don\'t trust me?', style: { top: '-20%', right: '-30%', left: '50%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_15.png`,
+    image: `${BASE}comics/intro/11.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: '...Huh?',
-        style: { top: '10%', left: '5%', right: '50%' },
-      },
-    ],
-  },
-
-  // ── Page 6: cut 16–18 ──────────────────────────────────────
-  {
-    image: `${BASE}comics/intro/cut_16.png`,
-    bubbles: [
-      {
-        type: 'speech',
-        text: 'Nakai…?',
-        style: { top: '-10%', left: '5%', right: '40%' },
-      },
+      { type: 'speech', text: 'Oh…', style: { top: '5%', left: '5%', right: '60%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_17.png`,
+    image: `${BASE}comics/intro/12.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: '...',
-        style: { top: '10%', left: '5%', right: '60%' },
-      },
+      { type: 'speech', voice: 'foreign',   text: 'What a beautiful flowering tree!', style: { top: '-15%', left: '-5%', right: '10%' } },
+      { type: 'speech', voice: 'foreign',   text: 'It\'s stunning!', style: { top: '5%', right: '15%', left: '50%' } },
     ],
   },
   {
-    // Cut 18: Soyeon silently looks up — no text bubble needed
-    image: `${BASE}comics/intro/cut_18.png`,
-    bubbles: [],
+    image: `${BASE}comics/intro/13.png`,
+    bubbles: [
+      { type: 'speech', voice: 'foreign',   text: 'Excuse me, do you happen to know the name of this tree?', style: { top: '-10%', left: '45%', right: '-5%' } },
+    ],
   },
-
-  // ── Page 7: cut 19–21 ──────────────────────────────────────
   {
-    // Cut 19: She reaches toward the tree — no text bubble needed
-    image: `${BASE}comics/intro/cut_19.png`,
+    image: `${BASE}comics/intro/14.png`,
+    bubbles: [
+      { type: 'speech', text: 'Just a moment… I\'ll look up the English name.', style: { bottom: '-5%', left: '-5%', right: '5%' } },
+    ],
+  },
+  {
+    image: `${BASE}comics/intro/15.png`,
+    bubbles: [
+      { type: 'speech', text: '...Huh?', style: { top: '10%', left: '5%', right: '50%' } },
+    ],
+  },
+  {
+    image: `${BASE}comics/intro/16.png`,
+    bubbles: [
+      { type: 'speech', text: 'Nakai…?', style: { top: '-10%', left: '5%', right: '40%' } },
+    ],
+  },
+  {
+    image: `${BASE}comics/intro/17.png`,
+    bubbles: [
+      { type: 'speech', text: 'Why would a Korean plant have a Japanese name in its scientific name...?', style: { top: '10%', left: '-20%', right: '60%' } },
+    ],
+  },
+  {
+    image: `${BASE}comics/intro/18.png`,
+    bubbles: [
+      { type: 'speech', text: 'What happened to you...?', style: { top: '10%', left: '5%', right: '60%' } },
+    ],
+  },
+  {
+    image: `${BASE}comics/intro/19.png`,
     bubbles: [],
   },
   {
-    image: `${BASE}comics/intro/cut_20.png`,
+    image: `${BASE}comics/intro/20.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'Wait—?!',
-        style: { top: '-10%', left: '5%', right: '50%' },
-      },
+      { type: 'speech', text: 'Wait—?!', style: { top: '-10%', left: '5%', right: '50%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_21.png`,
+    image: `${BASE}comics/intro/21.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'Soyeon!!!',
-        style: { top: '-10%', left: '5%', right: '50%' },
-      },
-    ],
-  },
-
-  // ── Page 8: cut 22–24 ──────────────────────────────────────
-  {
-    image: `${BASE}comics/intro/cut_22.png`,
-    bubbles: [
-      {
-        type: 'speech',
-        text: 'Ah?!',
-        style: { top: '-10%', left: '35%', right: '35%' },
-      },
+      { type: 'speech', text: 'Soyeon!!!', style: { top: '-10%', left: '5%', right: '50%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_23.png`,
+    image: `${BASE}comics/intro/22.png`,
     bubbles: [
-      {
-        type: 'speech',
-        text: 'Oh my God! What\'s happening?!',
-        style: { top: '-5%', left: '60%', right: '5%' },
-      },
+      { type: 'speech', text: 'Ah?!', style: { top: '-10%', left: '35%', right: '35%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_24.png`,
+    image: `${BASE}comics/intro/23.png`,
     bubbles: [
-      {
-        type: 'narration',
-        text: 'After that… I remember nothing.',
-        style: { bottom: '50px', left: '0', right: '0' },
-      },
-    ],
-  },
-
-  // ── Page 9: cut 25–27 ──────────────────────────────────────
-  {
-    image: `${BASE}comics/intro/cut_25.png`,
-    bubbles: [
-      {
-        type: 'narration',
-        text: 'The only thing I remember…',
-        style: { top: '20px', left: '0', right: '0' },
-      },
+      { type: 'speech', text: 'Oh my God! What\'s happening?!', style: { top: '-5%', left: '60%', right: '5%' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_26.png`,
+    image: `${BASE}comics/intro/24.png`,
     bubbles: [
-      {
-        type: 'narration',
-        text: 'Was the unusually strong—',
-        style: { bottom: '70px', left: '0', right: '0' },
-      },
+      { type: 'narration', text: 'After that… I remember nothing.', style: { bottom: '50px', left: '0', right: '0' } },
     ],
   },
   {
-    image: `${BASE}comics/intro/cut_27.png`,
+    image: `${BASE}comics/intro/25.png`,
     bubbles: [
-      {
-        type: 'narration',
-        text: '—fragrance of the Misun blossoms.',
-        style: { bottom: '150px', left: '0', right: '0' },
-      },
+      { type: 'narration', text: 'The only thing I remember…', style: { top: '20px', left: '0', right: '0' } },
+    ],
+  },
+  {
+    image: `${BASE}comics/intro/26.png`,
+    bubbles: [
+      { type: 'narration', text: 'Was the unusually strong—', style: { bottom: '70px', left: '0', right: '0' } },
+    ],
+  },
+  {
+    image: `${BASE}comics/intro/27.png`,
+    bubbles: [
+      { type: 'narration', text: '—fragrance of the Miseon blossoms.', style: { bottom: '150px', left: '0', right: '0' } },
     ],
   },
 ]
 
-// INTRO_PANELS 는 3컷씩 9페이지로 그룹화 (원본 레이아웃 그대로)
 const INTRO_PAGES = []
 for (let i = 0; i < INTRO_PANELS.length; i += 3) {
   INTRO_PAGES.push(INTRO_PANELS.slice(i, i + 3))
@@ -502,21 +314,14 @@ for (let i = 0; i < INTRO_PANELS.length; i += 3) {
 
 // ─────────────────────────────────────────────────────────────
 // 아웃트로 컷 데이터  ─ out_cut_01 ~ out_cut_19, 3컷씩
-//   out_cut_07, out_cut_19 는 solo (단독 풀스크린)
 // ─────────────────────────────────────────────────────────────
 const makeOutroCut = (n, solo = false, bubbles = []) => ({
-  image: `${BASE}comics/outro/out_cut_${pad2(n)}.png`,
+  image: `${BASE}comics/outro/${pad2(n)}.png`,
   bubbles,
   solo,
 })
 
-// ── 아웃트로 컷 데이터 (out_cut_01 ~ out_cut_19) ──────────────
-// narration → .b-narration (사각형)
-// speech    → .b-speech   (말풍선)
-// solo: true → 단독 풀스크린 (cut_07, cut_19)
-// ─────────────────────────────────────────────────────────────
 const OUTRO_PAGES = [
-  // ── Page 1: cut 01–03 ──────────────────────────────────────
   [
     makeOutroCut(1, false, [
       { type: 'speech', text: "We're back!", style: { top: '-10%', left: '25%', right: '10%' } },
@@ -528,10 +333,7 @@ const OUTRO_PAGES = [
       { type: 'speech', text: 'The name of that tree is…', style: { bottom: '10%', left: '25%', right: '5%' } },
     ]),
   ],
-
-  // ── Page 2: cut 04–06 ──────────────────────────────────────
   [
-    // Flashback — Chang Hyung-doo's voice
     makeOutroCut(4, false, [
       { type: 'speech', text: 'Tell them proudly…', style: { top: '5%', left: '5%', right: '5%' } },
     ]),
@@ -542,15 +344,11 @@ const OUTRO_PAGES = [
       { type: 'speech', text: 'The name is…', style: { bottom: '10%', left: '5%', right: '5%' } },
     ]),
   ],
-
-  // ── Page 3: cut 07 — solo ──────────────────────────────────
   [
     makeOutroCut(7, true, [
-      { type: 'speech', text: 'Mison Tree.', style: { top: '10%', left: '30%', right: '40%' } },
+      { type: 'speech', text: 'miseon namu.', style: { top: '10%', left: '30%', right: '40%' } },
     ]),
   ],
-
-  // ── Page 4: cut 08–10 ──────────────────────────────────────
   [
     makeOutroCut(8, false, [
       { type: 'speech', text: 'Thank you!', style: { top: '5%', left: '55%', right: '5%' } },
@@ -558,35 +356,26 @@ const OUTRO_PAGES = [
     makeOutroCut(9, false, [
       { type: 'speech', text: 'Shall we move on?', style: { top: '-10%', left: '5%', right: '5%' } },
     ]),
-    // Cut 10: visual — Soyeon looks back at the tree (no text)
     makeOutroCut(10, false, []),
   ],
-
-  // ── Page 5: cut 11–13 ──────────────────────────────────────
   [
-    // Cut 11: visual — close-up of Misun tree (no text)
     makeOutroCut(11, false, []),
     makeOutroCut(12, false, [
-      { type: 'speech', text: 'The Misun tree… A tree found only in Korea…', style: { bottom: '5%', left: '45%', right: '-5%' } },
+      { type: 'speech', text: 'The miseon namu… A tree found only in Korea…', style: { bottom: '5%', left: '45%', right: '-5%' } },
     ]),
     makeOutroCut(13, false, [
-      { type: 'speech', text: 'It reminds me of… Chang Hyung-doo.', style: { top: '-10%', left: '5%', right: '5%' } },
+      { type: 'speech', text: 'It reminds me of… Chang, Hyung Doo.', style: { top: '-10%', left: '5%', right: '5%' } },
     ]),
   ],
-
-  // ── Page 6: cut 14–16 ──────────────────────────────────────
   [
     makeOutroCut(14, false, [
       { type: 'speech', text: 'I think so too.', style: { top: '-10%', left: '5%', right: '5%' } },
     ]),
-    // Cut 15: visual — Soyeon looks at the tree again (no text)
     makeOutroCut(15, false, []),
     makeOutroCut(16, false, [
       { type: 'narration', text: 'I never imagined so many stories could exist in a single name.', style: { bottom: '-20px', left: '0', right: '0' } },
     ]),
   ],
-
-  // ── Page 7: cut 17–18 ──────────────────────────────────────
   [
     makeOutroCut(17, false, [
       { type: 'narration', text: 'Who gives the name…', style: { top: '-20px', left: '0', right: '0' } },
@@ -595,19 +384,16 @@ const OUTRO_PAGES = [
       { type: 'narration', text: 'And what that name leaves behind…', style: { bottom: '-20px', left: '0', right: '0' } },
     ]),
   ],
-
-  // ── Page 8: cut 19 — solo (Final Cut) ─────────────────────
   [
     makeOutroCut(19, true, [
       { type: 'speech', text: 'I never knew so much history was hidden in this tree.', style: { top: '5%', left: '45%', right: '35%' } },
-      { type: 'speech', text: 'Me neither.',                                            style: { top: '22%', right: '30%', left: '60%' } },
+      { type: 'speech', text: 'Me neither.', style: { top: '22%', right: '30%', left: '60%' } },
     ]),
   ],
 ]
 
 // ─────────────────────────────────────────────────────────────
-// IntroComic  ─ 원본 레이아웃(3컷 동시 표시 + 말풍선 CSS) 유지
-//               9페이지로 확장 (페이지별 step 리셋)
+// IntroComic
 // ─────────────────────────────────────────────────────────────
 function IntroComic({ onComplete }) {
   const [pageIdx, setPageIdx] = useState(0)
@@ -629,6 +415,15 @@ function IntroComic({ onComplete }) {
 
   const isPanelVisible  = (i) => step >= i * 2 + 1
   const isBubbleVisible = (i) => step >= i * 2 + 2
+
+  // 말풍선이 나타나는 순간 (step 이 짝수) → 그 컷 말풍선들의 목소리를 차례로
+  useEffect(() => {
+    if (step % 2 !== 0) return
+    const panel = panels[step / 2 - 1]
+    const voices = panel?.bubbles.map((b) => b.voice).filter(Boolean) ?? []
+    if (voices.length) playVoices(voices, panel)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageIdx, step])
 
   return (
     <div
@@ -715,7 +510,7 @@ function IntroComic({ onComplete }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// EndingContent  ─ out_cut_01~19, 3컷씩 / solo 단독 풀스크린
+// EndingContent (아웃트로 웹툰)
 // ─────────────────────────────────────────────────────────────
 function EndingContent({ onComplete }) {
   const [pageIdx, setPageIdx] = useState(0)
@@ -807,7 +602,7 @@ function EndingContent({ onComplete }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ImageSlideshow  ─ 원본 코드 유지
+// ImageSlideshow
 // ─────────────────────────────────────────────────────────────
 function ImageSlideshow({ images, onComplete }) {
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -843,61 +638,9 @@ function ImageSlideshow({ images, onComplete }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// FlowerBillboard
-// ─────────────────────────────────────────────────────────────
-function FlowerBillboard({ position = [0, 5, 0] }) {
-  const [texture, setTexture] = React.useState(null)
-  React.useEffect(() => {
-    const loader = new THREE.TextureLoader()
-    loader.load(`${BASE}images/mison_namu.png`, (t) => setTexture(t))
-  }, [])
-  if (!texture) return null
-  return (
-    <Billboard follow={true} lockX={false} lockY={false} lockZ={false} position={position}>
-      <mesh>
-        <planeGeometry args={[35, 35]} />
-        <meshBasicMaterial map={texture} transparent side={THREE.DoubleSide} opacity={1} toneMapped={false} color="#ffffff" />
-      </mesh>
-    </Billboard>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
-// StandingIconBillboard
-// ─────────────────────────────────────────────────────────────
-function StandingIconBillboard({ position = [0, 5, 0], imagePath, onClick }) {
-  const [texture, setTexture] = React.useState(null)
-  const [hovered, setHovered] = React.useState(false)
-  React.useEffect(() => {
-    const loader = new THREE.TextureLoader()
-    loader.load(imagePath, (t) => setTexture(t))
-  }, [imagePath])
-  if (!texture) return null
-  return (
-    <Billboard follow={true} lockX={false} lockY={false} lockZ={false} position={position}>
-      <mesh
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-        onClick={(e) => { e.stopPropagation(); onClick?.() }}
-      >
-        <planeGeometry args={[40, 40]} />
-        <meshBasicMaterial map={texture} transparent side={THREE.DoubleSide} opacity={1} toneMapped={false} color="#ffffff" />
-      </mesh>
-      {hovered && (
-        <Html position={[0, -17, 0]} center>
-          <div style={{ color: 'white', fontSize: '16px', background: 'rgba(0,0,0,0.7)', padding: '10px 20px', borderRadius: '20px', pointerEvents: 'none', whiteSpace: 'nowrap', border: '1px solid var(--color-accent-gold)', fontFamily: 'var(--font-body)' }}>
-            Click to start the conversation
-          </div>
-        </Html>
-      )}
-    </Billboard>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
 // DialogueOverlay
 // ─────────────────────────────────────────────────────────────
-function DialogueOverlay({ dialogues, onComplete }) {
+function DialogueOverlay({ dialogues, onComplete, onCue }) {
   const [idx, setIdx] = useState(0)
   const d = dialogues[idx]
   const isLeftActive  = d.side === 'left'
@@ -908,6 +651,18 @@ function DialogueOverlay({ dialogues, onComplete }) {
   const DIALOGUE_BOX_H = 220
   const CHAR_HEIGHT     = '90vh'
   const handleClick = () => { if (idx < dialogues.length - 1) setIdx(idx + 1); else onComplete() }
+
+  // 대사가 바뀔 때마다: 그 인물의 목소리 (story/voice.js)
+  //   + 이 대사에 붙은 카메라·분위기 신호 (대사창을 끊지 않고 보내서 스탠딩 일러스트가 튀지 않음)
+  const cuesSent = useRef(null)
+  useEffect(() => {
+    playVoice(d.character, d)
+    if (cuesSent.current === d) return          // 개발 모드에서 두 번 불려도 한 번만
+    cuesSent.current = d
+    d.cues?.forEach((c) => onCue?.(c.kind, c.name))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d])
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 100 }}>
       {leftImg && (
@@ -922,10 +677,10 @@ function DialogueOverlay({ dialogues, onComplete }) {
       )}
       <div onClick={handleClick} style={{ position: 'absolute', bottom: '20px', left: `${BOX_MARGIN}px`, right: `${BOX_MARGIN}px`, minHeight: `${DIALOGUE_BOX_H}px`, zIndex: 102, backgroundImage: 'var(--paper-tex-bg-3)', backgroundSize: 'cover', backgroundColor: 'var(--bg-color)', borderTop: 'var(--border-thickness-medium) solid var(--corner-color)', border: '2px solid var(--corner-color)', borderRadius: 'var(--border-radius-sm)', padding: '24px 60px 36px', cursor: 'pointer', pointerEvents: 'auto', boxSizing: 'border-box' }}>
         <div style={{ position: 'absolute', top: '-2px', left: '-2px', width: 'var(--corner-size)', height: 'var(--corner-size)', borderTop: '3px solid var(--corner-color)', borderLeft: '3px solid var(--corner-color)' }} />
-        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', color: isNarration ? 'var(--color-accent-gold)' : isLeftActive ? 'var(--color-accent)' : 'var(--color-accent-secondary)', marginBottom: 'var(--spacing-sm)', borderBottom: '1px solid var(--secondary-color)', paddingBottom: 'var(--spacing-xs)', display: 'inline-block' }}>
+        <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 'var(--font-weight-xl-bold)', fontSize: 'var(--font-size-xl)', color: isNarration ? 'var(--color-accent-gold)' : isLeftActive ? 'var(--color-accent)' : 'var(--color-accent-secondary)', marginBottom: 'var(--spacing-sm)', borderBottom: '1px solid var(--secondary-color)', paddingBottom: 'var(--spacing-xs)', display: 'inline-block' }}>
           {d.character}
         </div>
-        <div style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-md)', color: 'var(--color-text)', lineHeight: 1.8, marginTop: 'var(--spacing-sm)', fontStyle: isNarration ? 'italic' : 'normal' }}>
+        <div style={{ fontFamily: 'var(--font-body)', fontWeight: 'var(--font-weight-bold)', fontSize: 'var(--font-size-lg)', color: 'var(--color-text)', lineHeight: 1.8, marginTop: 'var(--spacing-sm)', fontStyle: isNarration ? 'italic' : 'normal' }}>
           {d.text}
           <span style={{ display: 'inline-block', width: '32px', height: '22px', backgroundImage: 'var(--basic-arrow)', backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center', verticalAlign: 'middle', marginLeft: '10px', animation: 'arrowPulse 1.4s ease-in-out infinite' }} />
         </div>
@@ -944,14 +699,15 @@ function DialogueOverlay({ dialogues, onComplete }) {
 function ChoiceImage({ src, label }) {
   const [status, setStatus] = React.useState('loading')
   if (!src || status === 'fail') return <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xl)', color: 'var(--color-text)', textAlign: 'center', lineHeight: 1.4 }}>{label}</div>
-  return <img src={src} alt={label} onLoad={() => setStatus('ok')} onError={() => setStatus('fail')} style={{ maxWidth: '90%', maxHeight: '180px', objectFit: 'contain', opacity: status === 'ok' ? 1 : 0, transition: 'opacity 0.2s ease' }} />
+  return <img src={src} alt={label} onLoad={() => setStatus('ok')} onError={() => setStatus('fail')} style={{ maxWidth: '92%', maxHeight: '210px', width: 'auto', height: 'auto', objectFit: 'contain', opacity: status === 'ok' ? 1 : 0, transition: 'opacity 0.2s ease' }} />
 }
 
+// 순서는 Narrative Design V4 의 선택지 순서 (label 은 이미지를 못 불러올 때 대신 보이는 글자)
 const NAME_CHOICES = [
-  { id: 'korean',     label: 'Misun Tree',      sublabel: '미선나무',                  img: `${BASE}typo/mison_namu.svg`  },
-  { id: 'japanese',   label: 'Uchiwa-noki',      sublabel: 'うちわのき',               img: `${BASE}typo/Uchiwa-noki.svg` },
-  { id: 'scientific', label: 'Scientific Name',  sublabel: 'Abeliophyllum distichum', img: null },
-  { id: 'english',    label: 'White Forsythia',  sublabel: 'English Name',            img: null },
+  { id: 'japanese',   label: 'Uchiwa-noki',             img: `${BASE}typo/Uchiwa_noki_typo.svg` },
+  { id: 'korean',     label: 'Miseon namu',             img: `${BASE}typo/mison_namu_typo.svg`  },
+  { id: 'scientific', label: 'Abeliophyllum distichum', img: `${BASE}typo/Abeliophyllum_distichum_typo.svg` },
+  { id: 'english',    label: 'White Forsythia',         img: `${BASE}typo/white_forsythia_typo.svg` },
 ]
 
 function NameChoiceOverlay({ onChoice }) {
@@ -962,10 +718,9 @@ function NameChoiceOverlay({ onChoice }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
         {NAME_CHOICES.map((choice) => (
           <div key={choice.id} onClick={() => onChoice(choice.id)} onMouseEnter={() => setHovered(choice.id)} onMouseLeave={() => setHovered(null)}
-            style={{ width: '480px', height: '270px', backgroundImage: 'var(--paper-tex-bg-2)', backgroundSize: 'cover', backgroundColor: 'var(--bg-color)', border: hovered === choice.id ? 'var(--border-thickness-medium) solid var(--secondary-color)' : 'var(--border-thickness-thin) solid var(--color-text-muted)', borderRadius: 'var(--border-radius-md)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: '28px', position: 'relative', transition: 'all 0.3s ease', transform: hovered === choice.id ? 'scale(1.03)' : 'scale(1)', boxShadow: hovered === choice.id ? '0 8px 24px rgba(88,60,43,0.15)' : 'none' }}>
+            style={{ width: '480px', height: '270px', backgroundImage: 'var(--paper-tex-bg-2)', backgroundSize: 'cover', backgroundColor: 'var(--bg-color)', border: hovered === choice.id ? 'var(--border-thickness-medium) solid var(--secondary-color)' : 'var(--border-thickness-thin) solid var(--color-text-muted)', borderRadius: 'var(--border-radius-md)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: '20px', position: 'relative', transition: 'all 0.3s ease', transform: hovered === choice.id ? 'scale(1.03)' : 'scale(1)', boxShadow: hovered === choice.id ? '0 8px 24px rgba(88,60,43,0.15)' : 'none' }}>
             {hovered === choice.id && <div style={{ position: 'absolute', top: '-2px', left: '-2px', width: 'var(--corner-size)', height: 'var(--corner-size)', borderTop: 'var(--corner-weight) solid var(--corner-color)', borderLeft: 'var(--corner-weight) solid var(--corner-color)' }} />}
             <ChoiceImage src={choice.img} label={choice.label} />
-            <div style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', marginTop: '10px', textAlign: 'center' }}>{choice.sublabel}</div>
           </div>
         ))}
       </div>
@@ -973,94 +728,96 @@ function NameChoiceOverlay({ onChoice }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────
-// Credits
-// ─────────────────────────────────────────────────────────────
-function Credits({ onComplete }) {
-  React.useEffect(() => { const t = setTimeout(() => onComplete(), 8000); return () => clearTimeout(t) }, [onComplete])
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'var(--primary-color)', color: 'var(--bg-color)', overflowY: 'auto', padding: '60px', fontFamily: 'var(--font-body)', zIndex: 9999 }}>
-      <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
-        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-2xl)', color: 'var(--color-accent-gold)', marginBottom: 'var(--spacing-xl)' }}>The Garden of Liberation</h1>
-        <div style={{ marginBottom: 'var(--spacing-2xl)' }}>
-          <h2 style={{ marginBottom: 'var(--spacing-lg)' }}>Timeline & Infographic</h2>
-          <img src={`${BASE}infographic.png`} alt="Infographic" style={{ maxWidth: '100%', marginBottom: 'var(--spacing-lg)', borderRadius: 'var(--border-radius-md)' }} />
-        </div>
-        <div style={{ marginBottom: 'var(--spacing-2xl)', textAlign: 'left' }}>
-          <h2 style={{ marginBottom: 'var(--spacing-lg)', textAlign: 'center' }}>참고 문헌 & 사료</h2>
-          <ul style={{ lineHeight: '2.2', fontSize: 'var(--font-size-md)', opacity: 0.9 }}>
-            <li>참고문헌 1: 제목, 저자, 출판사</li>
-            <li>참고문헌 2: 제목, 저자, 출판사</li>
-            <li>참고문헌 3: 제목, 저자, 출판사</li>
-            <li>사료 1: 출처 및 설명</li>
-            <li>사료 2: 출처 및 설명</li>
-          </ul>
-        </div>
-        <div style={{ marginTop: 'var(--spacing-2xl)', fontSize: 'var(--font-size-sm)', opacity: 0.6 }}>
-          <p style={{ marginBottom: 'var(--spacing-md)' }}>잠시 후 처음으로 돌아갑니다...</p>
-          <div style={{ width: 0, height: '3px', background: 'linear-gradient(90deg, var(--color-accent), var(--color-accent-secondary))', margin: '0 auto', animation: 'creditsLoad 8s linear forwards' }} />
-        </div>
-      </div>
-      <style>{`@keyframes creditsLoad { 0%{width:0} 100%{width:400px} }`}</style>
-    </div>
-  )
-}
+// ※ 기존 Credits 컴포넌트는 components/flow/CreditsScreen.jsx 로 대체되었습니다.
+//   (타임라인/인포그래픽은 components/flow/TimelinePage.jsx 로 이동)
 
-// ─────────────────────────────────────────────────────────────
-// SceneModels
-// ─────────────────────────────────────────────────────────────
-function SceneModels({ selectedObject, setSelectedObject, showNakaiIcon, onNakaiIconClick, showHyungdooIcon, onHyungdooIconClick }) {
-  return (
-    <>
-      <Select enabled={selectedObject === 'palace'}><group position={[-3,0,0]} onClick={(e)=>{e.stopPropagation();setSelectedObject('palace')}}><Palace /></group></Select>
-      <Select enabled={selectedObject === 'structure'}><group position={[3,0,0]} onClick={(e)=>{e.stopPropagation();setSelectedObject('structure')}}><Structure /></group></Select>
-      <Select enabled={selectedObject === 'palace02'}><group onClick={(e)=>{e.stopPropagation();setSelectedObject('palace02')}}><Palace02 /></group></Select>
-      <Select enabled={selectedObject === 'palace03'}><group position={[0,-3,0]} onClick={(e)=>{e.stopPropagation();setSelectedObject('palace03')}}><Palace03 /></group></Select>
-      <Select enabled={selectedObject === 'palace04'}><group onClick={(e)=>{e.stopPropagation();setSelectedObject('palace04')}}><Palace04 /></group></Select>
-      <Select enabled={selectedObject === 'palace06'}><group onClick={(e)=>{e.stopPropagation();setSelectedObject('palace06')}}><Palace06 /></group></Select>
-      <FlowerBillboard position={[0,20,-30]} /><FlowerBillboard position={[-150,40,-30]} /><FlowerBillboard position={[-135,40,30]} />
-      <FlowerBillboard position={[80,15,90]} /><FlowerBillboard position={[80,15,-90]} /><FlowerBillboard position={[60,15,-80]} />
-      <FlowerBillboard position={[-5,15,80]} /><FlowerBillboard position={[0,15,-90]} /><FlowerBillboard position={[-120,40,50]} /><FlowerBillboard position={[120,15,20]} />
-      {showNakaiIcon    && <StandingIconBillboard position={[14,17,10]} imagePath={`${BASE}UI/standing_icon/nakai_standing.png`}    onClick={onNakaiIconClick}    />}
-      {showHyungdooIcon && <StandingIconBillboard position={[14,17,10]} imagePath={`${BASE}UI/standing_icon/hyungdoo_standing.png`} onClick={onHyungdooIconClick} />}
-    </>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
-// ErrorBoundary
-// ─────────────────────────────────────────────────────────────
-class CanvasErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { hasError: false } }
-  static getDerivedStateFromError() { return { hasError: true } }
-  componentDidCatch(err) { console.error('Canvas error:', err) }
-  render() {
-    if (this.state.hasError) return <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)', fontSize: '14px', zIndex: 1 }}>3D 씬 로딩 중...</div>
-    return this.props.children
-  }
-}
+// 챕터 영상 — 영상이 있는 챕터는 영상, 아직 없는 챕터는 아래 슬라이드(chapterImages)를 보여줌
+const CHAPTER_MOTION = { 1: MOTION.ch1, 2: MOTION.ch2, 3: MOTION.ch3 }
 
 const chapterImages = {
-  1: [`${BASE}video/chp_01_01.jpg`, `${BASE}video/chp_01_02.jpg`, `${BASE}video/chp_01_03.jpg`],
-  2: [`${BASE}video/chp_02_01.jpg`, `${BASE}video/chp_02_02.jpg`, `${BASE}video/chp_02_03.jpg`],
-  3: [`${BASE}video/chp_03_01.jpg`, `${BASE}video/chp_03_02.jpg`, `${BASE}video/chp_03_03.jpg`],
+  1: [
+    `${BASE}video/chp1_01.png`, `${BASE}video/chp1_02.jpg`, `${BASE}video/chp1_03.jpg`,
+    `${BASE}video/chp1_04.jpg`, `${BASE}video/chp1_05.jpg`,
+  ],
+  2: [
+    `${BASE}video/chp2_01.jpg`, `${BASE}video/chp2_02.jpg`, `${BASE}video/chp2_03.jpg`,
+    `${BASE}video/chp2_04.jpg`, `${BASE}video/chp2_05.jpg`,
+  ],
+  3: [
+    `${BASE}video/chp3_01.jpg`, `${BASE}video/chp3_02.jpg`, `${BASE}video/chp3_03.jpg`,
+    `${BASE}video/chp3_04.jpg`, `${BASE}video/chp3_05.jpg`,
+  ],
+}
+
+
+// 챕터 영상 자리: 영상 파일이 등록돼 있으면 MotionPlayer, 아니면 기존 슬라이드
+function ChapterMotion({ chapter, onComplete, allowSkip }) {
+  const src = CHAPTER_MOTION[chapter]
+  if (src) return <MotionPlayer key={src} src={src} onComplete={onComplete} allowSkip={allowSkip} />
+  return <ImageSlideshow images={chapterImages[chapter]} onComplete={onComplete} />
+}
+
+// 대화를 보는 동안 다음 챕터 영상을 미리 받아 둠 (화면엔 안 보임)
+function MotionPreload({ chapter }) {
+  const src = CHAPTER_MOTION[chapter]
+  return src ? <video src={src} preload="auto" muted playsInline style={{ display: 'none' }} /> : null
 }
 
 // ─────────────────────────────────────────────────────────────
-// Main App
+// Main App (데스크톱 체험 전체 흐름)
+//   온보딩 → 인트로 웹툰 → 3D 챕터 1~3 → 이름 선택
+//   → (한글) 엔딩 컷씬 → 아웃트로 웹툰 → 크레딧
+//   → (그 외) 엔딩 대화 → 엔딩 컷씬 → 크레딧
+//   크레딧 ↔ 타임라인, Restart → 온보딩
+//   한 번 크레딧까지 본 뒤부터 웹툰/챕터 건너뛰기 가능 (localStorage 저장)
 // ─────────────────────────────────────────────────────────────
-function App() {
-  usePreloadImages()
-  const [currentStage, setCurrentStage] = useState(STAGES.INTRO_COMIC)
-  const [selectedObject, setSelectedObject] = useState(null)
+// 엔딩 대화 단계 — 대본은 ENDING_SCENES[endingType] 로 고름
+//   진엔딩(korean)도 이제 대화가 있어서 ENDING_2_DIALOGUE 단계를 같이 씀
+const ENDING_DIALOGUE_STAGE = {
+  korean:     STAGES.ENDING_2_DIALOGUE,
+  japanese:   STAGES.ENDING_2_DIALOGUE,
+  scientific: STAGES.ENDING_3_DIALOGUE,
+  english:    STAGES.ENDING_4_DIALOGUE,
+}
+
+function MainApp() {
+  const comicReady = useStagedPreload()
+  const [currentStage, setCurrentStage] = useState(STAGES.ONBOARDING)
+  const [endingType, setEndingType] = useState(null)          // 'korean' | 'japanese' | 'scientific' | 'english'
+  const [completedRuns, setCompletedRuns] = useState(getCompletedRuns)
+  const countedThisRun = useRef(false)
+
   const [showChapter1Interaction,  setShowChapter1Interaction]  = useState(false)
   const [showHyungdooIcon,         setShowHyungdooIcon]         = useState(false)
   const [showChapter2Interaction,  setShowChapter2Interaction]  = useState(false)
   const [showChapter3Misun,        setShowChapter3Misun]        = useState(false)
   const [showChapter3New,          setShowChapter3New]          = useState(false)
 
-  const handleStageComplete = (nextStage) => {
+  // ── 분위기 전환 (대본의 { effect: '…' }) ──
+  //   imperial : 1장 — 정원이 붉게 어두워지고 일장기가 나타남
+  //   local    : 2장 — 푸른 톤, 일장기 사라짐
+  //   bloom    : 3장 전환 — 밝고 따뜻한 빛
+  //   다음 effect 가 올 때까지 유지, 이름 선택·처음으로 돌아가면 해제
+  const [mood, setMood] = useState(null)
+  const handleCue = useCallback((kind, name) => {
+    if (kind === 'effect') setMood(name)
+    else if (import.meta.env.DEV) console.info(`[ScenePlayer] ${kind} "${name}" 자리 (3D 연출은 아직 준비 중)`)
+  }, [])
+
+  // ── 3D 로딩 화면 ──
+  //   sceneMounted : Scene3D 가 (코드 + 모델까지) 준비되어 화면에 붙었는지
+  //   loaderDone   : 로딩 화면이 사라졌는지 — 한 번 끝나면 다시 띄우지 않음 (모델은 캐시에 남아 있음)
+  const [sceneMounted, setSceneMounted] = useState(false)
+  const [loaderDone,   setLoaderDone]   = useState(false)
+  const markSceneMounted = useCallback(() => setSceneMounted(true), [])
+  const finishLoader     = useCallback(() => setLoaderDone(true), [])
+
+  const canSkip = completedRuns >= 1
+  const allowMotionSkip = canSkip || import.meta.env.DEV   // 영상 건너뛰기: 2회차부터 (개발 중엔 항상)
+
+  const goTo = (nextStage) => {
     setCurrentStage(nextStage)
+    if (nextStage === STAGES.NAME_CHOICE || nextStage === STAGES.ONBOARDING) setMood(null)
     setShowChapter1Interaction(false)
     setShowHyungdooIcon(false)
     setShowChapter2Interaction(false)
@@ -1068,14 +825,59 @@ function App() {
     setShowChapter3New(false)
   }
 
-  const isIn3DSpace = ![STAGES.INTRO_COMIC, STAGES.ENDING_COMIC, STAGES.CREDITS].includes(currentStage)
+  // 크레딧에 처음 도달한 순간 = 한 회차 완주로 기록 (회차당 한 번만)
+  useEffect(() => {
+    if (currentStage === STAGES.CREDITS && !countedThisRun.current) {
+      countedThisRun.current = true
+      setCompletedRuns(addCompletedRun())
+    }
+  }, [currentStage])
+
+  const handleNameChoice = (choice) => {
+    setEndingType(choice)
+    goTo(ENDING_DIALOGUE_STAGE[choice])
+  }
+  const handleCutsceneEnd = () => goTo(endingType === 'korean' ? STAGES.OUTRO_COMIC : STAGES.CREDITS)
+  const handleRestart = () => {
+    countedThisRun.current = false
+    setEndingType(null)
+    setMood(null)
+    goTo(STAGES.ONBOARDING)
+  }
+
+  const isIn3DSpace           = !FULLSCREEN_STAGES.includes(currentStage)
+  const isNakaiIconVisible    = currentStage === STAGES.CHAPTER_1_DIALOGUE && !showChapter1Interaction
+  const isHyungdooIconVisible = currentStage === STAGES.CHAPTER_2_DIALOGUE && showHyungdooIcon && !showChapter2Interaction
+  const isControlsEnabled     = !currentStage.includes('video') && currentStage !== STAGES.NAME_CHOICE
+  const isImperial            = mood === 'imperial'
+  const bgmTrack              = pickBgm({ stage: currentStage, mood, endingType })   // 구간별 배경음악 (story/bgm.js)
 
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#1a1410' }}>
 
-      {currentStage === STAGES.INTRO_COMIC  && <IntroComic    onComplete={() => handleStageComplete(STAGES.GARDEN_ARRIVAL)} />}
-      {currentStage === STAGES.ENDING_COMIC && <EndingContent onComplete={() => handleStageComplete(STAGES.CREDITS)} />}
-      {currentStage === STAGES.CREDITS      && <Credits       onComplete={() => handleStageComplete(STAGES.INTRO_COMIC)} />}
+      {/* ── 배경음악: 구간이 바뀌면 크로스페이드, 같은 곡이면 계속 ── */}
+      <BgmPlayer track={bgmTrack} />
+
+      {/* ── 전체화면 단계 ── */}
+      {currentStage === STAGES.ONBOARDING      && <Onboarding     onStart={() => goTo(STAGES.INTRO_COMIC)} />}
+      {currentStage === STAGES.INTRO_COMIC     && <IntroComic     onComplete={() => goTo(STAGES.GARDEN_ARRIVAL)} />}
+      {currentStage === STAGES.ENDING_CUTSCENE && <EndingCutscene type={endingType} onComplete={handleCutsceneEnd} />}
+      {currentStage === STAGES.OUTRO_COMIC     && <EndingContent  onComplete={() => goTo(STAGES.CREDITS)} />}
+      {currentStage === STAGES.CREDITS         && <CreditsScreen  onTimeline={() => goTo(STAGES.TIMELINE)} onRestart={handleRestart} />}
+      {currentStage === STAGES.TIMELINE        && <TimelinePage   onBack={() => goTo(STAGES.CREDITS)} />}
+
+      {/* ── 온보딩 화면에 머무는 동안에만 3D 공간을 미리 준비 (웹툰 중에는 하지 않음, 화면에는 안 보임) ── */}
+      {comicReady && currentStage === STAGES.ONBOARDING && (
+        <Suspense fallback={null}><Scene3DPrep /></Suspense>
+      )}
+
+      {/* ── 2회차부터 건너뛰기 ── */}
+      {canSkip && currentStage === STAGES.INTRO_COMIC && (
+        <SkipButton label="Skip comic" onClick={() => goTo(STAGES.GARDEN_ARRIVAL)} />
+      )}
+      {canSkip && CHAPTER_STAGES.includes(currentStage) && (
+        <SkipButton label="Skip to the choice" onClick={() => goTo(STAGES.NAME_CHOICE)} />
+      )}
 
       {isIn3DSpace && (
         <>
@@ -1083,95 +885,81 @@ function App() {
           <div style={{ position:'fixed',inset:0,zIndex:0,backgroundImage:`url(${BASE}images/Jang_bg.png)`,backgroundSize:'cover',backgroundPosition:'center',opacity:currentStage.includes('chapter_2')?1:0,transition:'opacity 0.5s ease',pointerEvents:'none' }} />
           <div style={{ position:'fixed',inset:0,zIndex:0,backgroundImage:`url(${BASE}images/Paper_tex_2.png)`,backgroundSize:'cover',backgroundPosition:'center',opacity:(currentStage.includes('chapter_3')||currentStage===STAGES.NAME_CHOICE)?1:0,transition:'opacity 0.5s ease',pointerEvents:'none' }} />
 
+          {/* 분위기 막 (1장 붉은 정원 등) — 3D 위, 대화창 아래 */}
+          <MoodOverlay mood={mood} />
+
           {/* GARDEN ARRIVAL */}
           {currentStage === STAGES.GARDEN_ARRIVAL && (
-            <DialogueOverlay dialogues={DIALOGUES.gardenArrival} onComplete={() => handleStageComplete(STAGES.CHAPTER_1_DIALOGUE)} />
+            <ScenePlayer scene={arrivalScene} Dialogue={DialogueOverlay} onCue={handleCue} onComplete={() => goTo(STAGES.CHAPTER_1_DIALOGUE)} />
           )}
 
-          {/* CHAPTER 1: 나카이 아이콘 → 대화 → 비디오 */}
+          {/* CHAPTER 1: 나카이 아이콘 → 대본(chapter1) → 영상 */}
+          {currentStage === STAGES.CHAPTER_1_DIALOGUE && <MotionPreload chapter={1} />}
+          {currentStage === STAGES.CHAPTER_2_DIALOGUE && <MotionPreload chapter={2} />}
+          {currentStage === STAGES.CHAPTER_3_DIALOGUE && <MotionPreload chapter={3} />}
           {currentStage === STAGES.CHAPTER_1_DIALOGUE && showChapter1Interaction && (
-            <DialogueOverlay dialogues={DIALOGUES.chapter1} onComplete={() => handleStageComplete(STAGES.CHAPTER_1_VIDEO)} />
+            <ScenePlayer scene={chapter1Scene} Dialogue={DialogueOverlay} onCue={handleCue} onComplete={() => goTo(STAGES.CHAPTER_1_VIDEO)} />
           )}
           {currentStage === STAGES.CHAPTER_1_VIDEO && (
-            <ImageSlideshow images={chapterImages[1]} onComplete={() => handleStageComplete(STAGES.CHAPTER_2_DIALOGUE)} />
+            <ChapterMotion chapter={1} allowSkip={allowMotionSkip} onComplete={() => goTo(STAGES.CHAPTER_2_DIALOGUE)} />
           )}
 
-          {/* CHAPTER 2: 반영 → 장형두 아이콘 → 대화 → 비디오 */}
+          {/* CHAPTER 2: 1장 영상 뒤(chapter1After) + 2장 시작(chapter2Intro) → 장형두 아이콘 → 대본(chapter2) → 영상 */}
           {currentStage === STAGES.CHAPTER_2_DIALOGUE && !showHyungdooIcon && !showChapter2Interaction && (
-            <DialogueOverlay dialogues={DIALOGUES.chapter2Reflection} onComplete={() => setShowHyungdooIcon(true)} />
+            <ScenePlayer scene={[chapter1AfterScene, chapter2IntroScene]} Dialogue={DialogueOverlay} onCue={handleCue} onComplete={() => setShowHyungdooIcon(true)} />
           )}
           {currentStage === STAGES.CHAPTER_2_DIALOGUE && showChapter2Interaction && (
-            <DialogueOverlay dialogues={DIALOGUES.chapter2Main} onComplete={() => handleStageComplete(STAGES.CHAPTER_2_VIDEO)} />
+            <ScenePlayer scene={chapter2Scene} Dialogue={DialogueOverlay} onCue={handleCue} onComplete={() => goTo(STAGES.CHAPTER_2_VIDEO)} />
           )}
           {currentStage === STAGES.CHAPTER_2_VIDEO && (
-            <ImageSlideshow images={chapterImages[2]} onComplete={() => handleStageComplete(STAGES.CHAPTER_3_DIALOGUE)} />
+            <ChapterMotion chapter={2} allowSkip={allowMotionSkip} onComplete={() => goTo(STAGES.CHAPTER_3_DIALOGUE)} />
           )}
 
-          {/* CHAPTER 3: 반영 → 미선나무 첫 대사 → 새 대화 → 비디오 → 마지막 질문 */}
-          {currentStage === STAGES.CHAPTER_3_DIALOGUE && !showChapter3Misun && !showChapter3New && (
-            <DialogueOverlay dialogues={DIALOGUES.chapter3Reflection} onComplete={() => setShowChapter3Misun(true)} />
-          )}
-          {currentStage === STAGES.CHAPTER_3_DIALOGUE && showChapter3Misun && !showChapter3New && (
-            <DialogueOverlay dialogues={DIALOGUES.chapter3Pre} onComplete={() => setShowChapter3New(true)} />
-          )}
-          {currentStage === STAGES.CHAPTER_3_DIALOGUE && showChapter3New && (
-            <DialogueOverlay dialogues={DIALOGUES.chapter3New} onComplete={() => handleStageComplete(STAGES.CHAPTER_3_VIDEO)} />
+          {/* CHAPTER 3: 2장 영상 뒤(chapter2After) → 대본(chapter3) → 영상 → 영상 뒤(chapter3After) → 이름 선택 */}
+          {/* 2장 영상 뒤 장면과 3장 장면을 한 번에 이어서 재생 → 사이에서 대사창이 끊기지 않음 */}
+          {currentStage === STAGES.CHAPTER_3_DIALOGUE && (
+            <ScenePlayer scene={[chapter2AfterScene, chapter3Scene]} Dialogue={DialogueOverlay} onCue={handleCue} onComplete={() => goTo(STAGES.CHAPTER_3_VIDEO)} />
           )}
           {currentStage === STAGES.CHAPTER_3_VIDEO && (
-            <ImageSlideshow images={chapterImages[3]} onComplete={() => handleStageComplete(STAGES.CHAPTER_3_FINAL)} />
+            <ChapterMotion chapter={3} allowSkip={allowMotionSkip} onComplete={() => goTo(STAGES.CHAPTER_3_FINAL)} />
           )}
           {currentStage === STAGES.CHAPTER_3_FINAL && (
-            <DialogueOverlay dialogues={DIALOGUES.chapter3Final} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />
+            <ScenePlayer scene={chapter3AfterScene} Dialogue={DialogueOverlay} onCue={handleCue} onComplete={() => goTo(STAGES.NAME_CHOICE)} />
           )}
 
-          {/* NAME CHOICE & 엔딩 분기 */}
-          {currentStage === STAGES.NAME_CHOICE && (
-            <NameChoiceOverlay onChoice={(choice) => {
-              if (choice === 'korean')          handleStageComplete(STAGES.ENDING_COMIC)
-              else if (choice === 'japanese')   handleStageComplete(STAGES.ENDING_2_DIALOGUE)
-              else if (choice === 'scientific') handleStageComplete(STAGES.ENDING_3_DIALOGUE)
-              else if (choice === 'english')    handleStageComplete(STAGES.ENDING_4_DIALOGUE)
-            }} />
+          {/* NAME CHOICE → 엔딩 분기 */}
+          {currentStage === STAGES.NAME_CHOICE && <NameChoiceOverlay onChoice={handleNameChoice} />}
+          {Object.values(ENDING_DIALOGUE_STAGE).includes(currentStage) && ENDING_SCENES[endingType] && (
+            <ScenePlayer key={endingType} scene={ENDING_SCENES[endingType]} Dialogue={DialogueOverlay} onCue={handleCue} onComplete={() => goTo(STAGES.ENDING_CUTSCENE)} />
           )}
-          {currentStage === STAGES.ENDING_2_DIALOGUE && <DialogueOverlay dialogues={DIALOGUES.ending2} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />}
-          {currentStage === STAGES.ENDING_3_DIALOGUE && <DialogueOverlay dialogues={DIALOGUES.ending3} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />}
-          {currentStage === STAGES.ENDING_4_DIALOGUE && <DialogueOverlay dialogues={DIALOGUES.ending4} onComplete={() => handleStageComplete(STAGES.NAME_CHOICE)} />}
 
-          {/* 3D Canvas */}
-          <CanvasErrorBoundary>
-            <Canvas style={{ position:'fixed',inset:0,zIndex:1,background:'transparent' }} camera={{ position:[0,20,50],fov:65 }} shadows gl={{ antialias:true,powerPreference:'high-performance',alpha:true }} onClick={() => setSelectedObject(null)}>
-              <Suspense fallback={null}>
-                <Selection>
-                  <ambientLight intensity={0.3} />
-                  <pointLight position={[10,10,10]} intensity={1.5} castShadow />
-                  <pointLight position={[-10,-10,-10]} intensity={0.8} color="#0066ff" />
-                  <directionalLight position={[5,10,5]} intensity={1} castShadow />
-                  <Environment preset="night" />
-                  <mesh rotation={[-Math.PI/2,0,0]} position={[0,-2,0]} receiveShadow>
-                    <planeGeometry args={[30,30]} />
-                    <meshStandardMaterial color="#1a1a1a" roughness={0.8} metalness={0.2} />
-                  </mesh>
-                  <SceneModels
-                    selectedObject={selectedObject} setSelectedObject={setSelectedObject}
-                    showNakaiIcon={currentStage === STAGES.CHAPTER_1_DIALOGUE && !showChapter1Interaction}
-                    onNakaiIconClick={() => setShowChapter1Interaction(true)}
-                    showHyungdooIcon={currentStage === STAGES.CHAPTER_2_DIALOGUE && showHyungdooIcon && !showChapter2Interaction}
-                    onHyungdooIconClick={() => setShowChapter2Interaction(true)}
-                  />
-                  <EffectComposer>
-                    <Outline blur={false} visibleEdgeColor={0xffd700} hiddenEdgeColor={0xffd700} edgeStrength={10} edgeThickness={1} width={1024} height={1024} />
-                  </EffectComposer>
-                </Selection>
-                {!currentStage.includes('VIDEO') && currentStage !== STAGES.NAME_CHOICE && (
-                  <OrbitControls enablePan enableZoom enableRotate dampingFactor={0.02} enableDamping maxDistance={120} minDistance={50} maxPolarAngle={Math.PI / 2} minPolarAngle={Math.PI / 3} target={[0,10,0]} />
-                )}
-              </Suspense>
-            </Canvas>
-          </CanvasErrorBoundary>
+          {/* 3D 공간 — three.js 코드와 모델은 이 컴포넌트가 처음 필요할 때 따로 내려받아요 */}
+          <Suspense fallback={null}>
+            <Scene3D
+              showNakaiIcon={isNakaiIconVisible}
+              onNakaiIconClick={() => setShowChapter1Interaction(true)}
+              showHyungdooIcon={isHyungdooIconVisible}
+              onHyungdooIconClick={() => setShowChapter2Interaction(true)}
+              controlsEnabled={isControlsEnabled}
+              showFlag={isImperial}
+            />
+            {/* Scene3D 와 같은 Suspense 안 → Scene3D 가 다 준비된 뒤에 신호가 와요 */}
+            <SceneMountedSignal onMounted={markSceneMounted} />
+          </Suspense>
         </>
+      )}
+
+      {/* ── 3D 로딩 화면: 3D 공간에 처음 들어갈 때, 모델이 다 준비될 때까지 덮어 둠 ── */}
+      {isIn3DSpace && !loaderDone && (
+        <LoadingScreen sceneMounted={sceneMounted} onFinished={finishLoader} />
       )}
     </div>
   )
+}
+
+// 주소에 ?bg 가 있으면 3D 공간만 보여주는 캡처 모드, 아니면 평소 체험
+function App() {
+  return CAPTURE_MODE ? <BackgroundCapture /> : <MainApp />
 }
 
 export default App

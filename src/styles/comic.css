@@ -28,6 +28,7 @@
   word-break: keep-all;
   line-height: 1.7;
   pointer-events: none;
+  font-weight: 550;
 
   /* 등장 애니메이션 시작값 — forwards 로 최종값 유지 */
   opacity: 0;

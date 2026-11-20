@@ -4,6 +4,13 @@
    tokens.css — :root 변수 + 테마 오버라이드
    ============================================================ */
 
+/* ============================================================
+  Google Fonts Import
+  Cormorant (heading) + Manrope (body)
+  ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300..700;1,300..700&family=Manrope:wght@200..800&display=swap');
+
 :root {
 
   /* ----------------------------------------------------------
@@ -36,16 +43,21 @@
      ---------------------------------------------------------- */
 
   /* Font Families */
-  --font-heading: 'Operetta', serif;
-  --font-body:    'Steradian', sans-serif;
+  --font-heading: 'Cormorant', serif;
+  --font-body:    'Manrope', sans-serif;
 
   /* Font Sizes */
   --font-size-xs:  12px;
   --font-size-sm:  14px;
-  --font-size-md:  16px;
+  --font-size-md:  18px;
   --font-size-lg:  20px;
   --font-size-xl:  28px;
   --font-size-2xl: 40px;
+
+  /* Font weight */
+  --font-weight-regular: 400;
+  --font-weight-bold: 550;
+  --font-weight-xl-bold: 700;
 
 
   /* ----------------------------------------------------------

@@ -1,0 +1,113 @@
+/* ─────────────────────────────────────────────────────────────
+   LoadingScreen
+   색·글꼴은 tokens.css 의 변수를 쓰고, 없을 때를 대비해 기본값을 넣어 두었어요.
+   ───────────────────────────────────────────────────────────── */
+
+.loading-screen {
+  --loader-bg:     #1a1410;                         /* App 바탕색과 같게 → 웹툰(검정)에서 자연스럽게 이어짐 */
+  --loader-ink:    var(--bg-color, #f3eadb);         /* 글자·가지 색 */
+  --loader-petal:  #fffaf2;
+  --loader-heart:  var(--color-accent-gold, #d9a441);
+  --loader-fade:   700ms;                            /* LoadingScreen.jsx 의 FADE_MS 와 맞추기 */
+
+  position: fixed;
+  inset: 0;
+  z-index: 10000;                                    /* 웹툰(9999)·대화창·건너뛰기 버튼보다 위 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--loader-bg);
+  color: var(--loader-ink);
+  opacity: 1;
+  transition: opacity var(--loader-fade) ease;
+  cursor: progress;
+}
+
+.loading-screen.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 내용은 살짝 늦게 나타남 — 이미 다 받아 둔 경우엔 거의 보이지 않고 바로 장면 전환처럼 지나감 */
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  animation: loader-in 0.6s ease 0.35s both;
+}
+
+/* ── 가지 ── */
+.loader-branch {
+  width: min(460px, 80vw);
+  height: auto;
+  overflow: visible;
+}
+
+.loader-branch-path {
+  fill: none;
+  stroke: var(--loader-ink);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  opacity: 0.75;
+  transition: stroke-dashoffset 0.6s ease;
+}
+
+/* ── 꽃 ── */
+.loader-blossom {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(0);
+  opacity: 0;
+  transition: transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease;
+}
+
+.loader-blossom.is-open {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.loader-petal {
+  fill: var(--loader-petal);
+  stroke: rgba(88, 60, 43, 0.35);
+  stroke-width: 0.6;
+}
+
+.loader-heart {
+  fill: var(--loader-heart);
+}
+
+/* ── 글자 ── */
+.loading-percent {
+  font-family: var(--font-heading, serif);
+  font-size: var(--font-size-2xl, 40px);
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.loading-caption {
+  font-family: var(--font-body, serif);
+  font-size: var(--font-size-sm, 15px);
+  font-style: italic;
+  opacity: 0.7;
+  animation: loader-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes loader-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes loader-breathe {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.85; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-content,
+  .loading-caption { animation: none; }
+  .loader-blossom,
+  .loader-branch-path { transition: none; }
+}
